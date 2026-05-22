@@ -171,14 +171,14 @@ impl MemExClient {
 
     fn estimate_importance(content: &str) -> f64 {
         let content_lower = content.to_lowercase();
-        let mut score = 0.3;
+        let mut score: f64 = 0.3;
         let high_signals = ["important", "critical", "key", "remember", "password", "token", "api key", "secret", "config", "必须记住", "重要", "关键", "密码"];
         for s in &high_signals { if content_lower.contains(s) { score += 0.15; } }
         let medium_signals = ["architecture", "design", "decision", "pattern", "workflow", "架构", "设计", "决策", "模式"];
         for s in &medium_signals { if content_lower.contains(s) { score += 0.08; } }
         if content.len() > 200 { score += 0.05; }
         if content.len() > 500 { score += 0.05; }
-        score.min(1.0)
+        score.min(1.0_f64)
     }
 }
 

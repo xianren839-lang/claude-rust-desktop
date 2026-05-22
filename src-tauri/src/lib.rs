@@ -35,3 +35,4 @@ pub mod orchestration;
 pub mod computer_use;
 pub mod db;
 pub mod permissions;
+pub mod memory;
