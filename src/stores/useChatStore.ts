@@ -15,13 +15,6 @@ interface ModelCatalog {
   fallback_model: string | null;
 }
 
-interface CrossModeWarning {
-  convId: string;
-  originalModel: string;
-  otherMode: 'clawparrot' | 'selfhosted';
-  fallbackModel: string;
-}
-
 interface CompactStatus {
   state: 'idle' | 'compacting' | 'done' | 'error';
   message?: string;
@@ -41,10 +34,12 @@ interface ChatState {
   compactStatus: CompactStatus;
   compactInstruction: string;
   planMode: boolean;
-  crossModeWarning: CrossModeWarning | null;
   providersCache: any[];
   webSearchToast: string | null;
+  webSearchEnabled: boolean;
   permissionMode: string;
+  autoCompactEnabled: boolean;
+  autoCompactThreshold: number;
 
   setMessages: (messages: any[] | ((prev: any[]) => any[])) => void;
   appendMessage: (msg: any) => void;
@@ -63,9 +58,11 @@ interface ChatState {
   setCompactStatus: (status: CompactStatus) => void;
   setCompactInstruction: (instruction: string) => void;
   setPlanMode: (mode: boolean) => void;
-  setCrossModeWarning: (warning: CrossModeWarning | null) => void;
   setProvidersCache: (providers: any[]) => void;
   setWebSearchToast: (toast: string | null) => void;
+  setWebSearchEnabled: (enabled: boolean) => void;
+    setAutoCompactEnabled: (enabled: boolean) => void;
+    setAutoCompactThreshold: (threshold: number) => void;
   resetChat: () => void;
 }
 
@@ -78,19 +75,21 @@ const initialState = {
   modelCatalog: null as ModelCatalog | null,
   currentModel: '',
   userMode: '',
-  researchMode: false,
+  researchMode: (() => { try { return localStorage.getItem('research_mode') === 'true'; } catch { return false; } })(),
   openedResearchMsgId: null as string | null,
   compactStatus: { state: 'idle' as const },
   compactInstruction: '',
   planMode: false,
-  crossModeWarning: null as CrossModeWarning | null,
   providersCache: [] as any[],
   webSearchToast: null as string | null,
+  webSearchEnabled: (() => { try { return localStorage.getItem('web_search_enabled') === 'true'; } catch { return false; } })(),
   permissionMode: (() => {
     try {
       return localStorage.getItem('permission_mode') || 'accept_edits';
     } catch { return 'accept_edits'; }
   })() as string,
+  autoCompactEnabled: (() => { try { return localStorage.getItem('auto_compact_enabled') !== 'false'; } catch { return true; } })(),
+  autoCompactThreshold: (() => { try { return parseInt(localStorage.getItem('auto_compact_threshold') || '80'); } catch { return 80; } })(),
 };
 
 export const useChatStore = create<ChatState>()(
@@ -158,19 +157,31 @@ export const useChatStore = create<ChatState>()(
       })),
 
     setUserMode: (userMode) => set({ userMode }),
-    setResearchMode: (researchMode) => set({ researchMode }),
+    setResearchMode: (researchMode) => { set({ researchMode }); try { localStorage.setItem("research_mode", String(researchMode)); } catch {} },
     setOpenedResearchMsgId: (openedResearchMsgId) => set({ openedResearchMsgId }),
     setCompactStatus: (compactStatus) => set({ compactStatus }),
     setCompactInstruction: (compactInstruction) => set({ compactInstruction }),
     setPlanMode: (planMode) => set({ planMode }),
-    setCrossModeWarning: (crossModeWarning) => set({ crossModeWarning }),
     setProvidersCache: (providersCache) => set({ providersCache }),
     setWebSearchToast: (webSearchToast) => set({ webSearchToast }),
+    setWebSearchEnabled: (webSearchEnabled) => { set({ webSearchEnabled }); try { localStorage.setItem('web_search_enabled', String(webSearchEnabled)); } catch {} },
     setPermissionMode: (permissionMode: string) => {
       set({ permissionMode });
       // Persist to localStorage
       try {
         localStorage.setItem('permission_mode', permissionMode);
+      } catch {}
+    },
+    setAutoCompactEnabled: (autoCompactEnabled: boolean) => {
+      set({ autoCompactEnabled });
+      try {
+        localStorage.setItem('auto_compact_enabled', String(autoCompactEnabled));
+      } catch {}
+    },
+    setAutoCompactThreshold: (autoCompactThreshold: number) => {
+      set({ autoCompactThreshold });
+      try {
+        localStorage.setItem('auto_compact_threshold', String(autoCompactThreshold));
       } catch {}
     },
     resetChat: () => set(initialState),

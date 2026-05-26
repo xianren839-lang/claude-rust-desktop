@@ -56,14 +56,14 @@ export interface SwarmSession {
 }
 
 const AGENT_ROLES = [
-  { role: 'Planner', icon: '🎯', color: '#3B82F6' },
-  { role: 'Researcher', icon: '🔍', color: '#8B5CF6' },
-  { role: 'Developer', icon: '💻', color: '#10B981' },
-  { role: 'Reviewer', icon: '🔎', color: '#F59E0B' },
-  { role: 'Writer', icon: '✍️', color: '#EC4899' },
-  { role: 'Architect', icon: '🏗️', color: '#06B6D4' },
-  { role: 'Analyst', icon: '📊', color: '#F97316' },
-  { role: 'Designer', icon: '🎨', color: '#A855F7' },
+  { role: '规划师', icon: '🎯', color: '#3B82F6' },
+  { role: '研究员', icon: '🔍', color: '#8B5CF6' },
+  { role: '开发者', icon: '💻', color: '#10B981' },
+  { role: '审核员', icon: '🔎', color: '#F59E0B' },
+  { role: '写作员', icon: '✍️', color: '#EC4899' },
+  { role: '架构师', icon: '🏗️', color: '#06B6D4' },
+  { role: '分析师', icon: '📊', color: '#F97316' },
+  { role: '设计师', icon: '🎨', color: '#A855F7' },
 ];
 
 const COMPLEXITY_THRESHOLD = 7;
@@ -100,7 +100,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
 
   subTasks.push({
     id: `${baseId}_plan`,
-    description: 'Analyze requirements and create execution plan',
+    description: '分析需求并制定执行计划',
     status: 'pending' as const,
     progress: 0,
     dependencies: [],
@@ -109,7 +109,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
   if (complexity >= 5) {
     subTasks.push({
       id: `${baseId}_research`,
-      description: 'Research and gather information for task',
+      description: '研究并收集任务相关信息',
       status: 'pending' as const,
       progress: 0,
       dependencies: [`${baseId}_plan`],
@@ -118,7 +118,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
 
   subTasks.push({
     id: `${baseId}_implement`,
-    description: 'Implement core solution based on plan',
+    description: '根据计划实施核心解决方案',
     status: 'pending' as const,
     progress: 0,
     dependencies: complexity >= 5 ? [`${baseId}_plan`, `${baseId}_research`] : [`${baseId}_plan`],
@@ -127,7 +127,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
   if (complexity >= 6) {
     subTasks.push({
       id: `${baseId}_test`,
-      description: 'Test and validate implementation',
+      description: '测试和验证实施结果',
       status: 'pending' as const,
       progress: 0,
       dependencies: [`${baseId}_implement`],
@@ -136,7 +136,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
 
   subTasks.push({
     id: `${baseId}_review`,
-    description: 'Review and polish final output',
+    description: '审查并完善最终输出',
     status: 'pending' as const,
     progress: 0,
     dependencies: complexity >= 6 ? [`${baseId}_test`] : [`${baseId}_implement`],
@@ -145,7 +145,7 @@ function splitTask(task: string, complexity: number): SubTask[] {
   if (complexity >= 8) {
     subTasks.push({
       id: `${baseId}_optimize`,
-      description: 'Optimize performance and edge cases',
+      description: '优化性能和边界情况',
       status: 'pending' as const,
       progress: 0,
       dependencies: [`${baseId}_review`],
@@ -193,12 +193,12 @@ const AgentNode: React.FC<{ agent: SwarmAgent; isExpanded: boolean }> = ({ agent
   };
 
   const stateLabels: Record<string, string> = {
-    idle: 'Idle',
-    planning: 'Planning',
-    executing: 'Executing',
-    synthesizing: 'Synthesizing',
-    completed: 'Completed',
-    failed: 'Failed',
+    idle: '空闲',
+    planning: '规划中',
+    executing: '执行中',
+    synthesizing: '整合中',
+    completed: '已完成',
+    failed: '失败',
   };
 
   return (
@@ -251,11 +251,11 @@ const AgentNode: React.FC<{ agent: SwarmAgent; isExpanded: boolean }> = ({ agent
           <div className="mt-2 pt-2 border-t border-claude-border/50">
             <div className="grid grid-cols-2 gap-2 text-[11px]">
               <div className="text-claude-textSecondary">
-                <span className="text-claude-text">Duration</span>
-                <div>{agent.durationMs > 0 ? `${(agent.durationMs / 1000).toFixed(1)}s` : '-'}</div>
+                <span className="text-claude-text">耗时</span>
+                <div>{agent.durationMs > 0 ? `${(agent.durationMs / 1000).toFixed(1)}秒` : '-'}</div>
               </div>
               <div className="text-claude-textSecondary">
-                <span className="text-claude-text">Tokens</span>
+                <span className="text-claude-text">令牌</span>
                 <div>{agent.tokensUsed > 0 ? agent.tokensUsed.toLocaleString() : '-'}</div>
               </div>
             </div>
@@ -433,8 +433,8 @@ const SwarmCollaboration: React.FC = () => {
 
     const agents: SwarmAgent[] = isComplex ? assignAgents(subTasks, complexity) : [{
       id: 'single_agent',
-      name: 'Single Agent',
-      role: 'General',
+      name: '单一智能体',
+      role: '通用',
       state: 'idle' as const,
       progress: 0,
       color: '#3B82F6',
@@ -504,11 +504,11 @@ const SwarmCollaboration: React.FC = () => {
 
             if (depsMet || subTaskIndex === 0) {
               if (newState === 'planning' || newState === 'executing') {
-                newSubTasks = newSubTasks.map((st, idx) => 
+                newSubTasks = newSubTasks.map((st, idx) =>
                   idx === subTaskIndex ? { ...st, status: 'in_progress' as const, progress: newProgress } : st
                 );
               } else if (newState === 'completed') {
-                newSubTasks = newSubTasks.map((st, idx) => 
+                newSubTasks = newSubTasks.map((st, idx) =>
                   idx === subTaskIndex ? { ...st, status: 'completed' as const, progress: 100 } : st
                 );
               }
@@ -583,7 +583,7 @@ const SwarmCollaboration: React.FC = () => {
       <div className="flex-shrink-0 p-4 border-b border-claude-border">
         <div className="flex items-center gap-2 mb-3">
           <Users size={18} className="text-[#3B82F6]" />
-          <h2 className="text-[15px] font-semibold text-claude-text">Swarm Collaboration</h2>
+          <h2 className="text-[15px] font-semibold text-claude-text">智能协作</h2>
           <Sparkles size={14} className="text-[#A855F7] ml-auto" />
         </div>
 
@@ -591,7 +591,7 @@ const SwarmCollaboration: React.FC = () => {
           <textarea
             value={inputTask}
             onChange={(e) => setInputTask(e.target.value)}
-            placeholder="Describe a complex task for swarm collaboration..."
+            placeholder="输入一个复杂任务，多个AI智能体将协作完成..."
             className="w-full px-3 py-2 text-[13px] bg-claude-input border border-claude-border rounded-lg text-claude-text placeholder:text-claude-textSecondary/50 focus:outline-none focus:border-[#3B82F6] resize-none"
             rows={3}
             disabled={!!session && session.status === 'running'}
@@ -600,7 +600,7 @@ const SwarmCollaboration: React.FC = () => {
             <div className="flex items-center gap-2">
               <Brain size={14} className="text-claude-textSecondary" />
               <span className="text-[11px] text-claude-textSecondary">
-                {isAnalyzing ? 'Analyzing complexity...' : inputTask ? `Complexity: ${analyzeComplexity(inputTask)}/10` : 'Enter a task to analyze'}
+                {isAnalyzing ? '分析中...' : inputTask ? `复杂度: ${analyzeComplexity(inputTask)}/10` : '输入任务进行分析'}
               </span>
             </div>
             {!session || session.status === 'completed' || session.status === 'failed' ? (
@@ -610,7 +610,7 @@ const SwarmCollaboration: React.FC = () => {
                 className="px-3 py-1.5 text-[12px] font-medium text-white bg-[#3B82F6] hover:bg-[#2563EB] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isAnalyzing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                {isAnalyzing ? 'Analyzing' : 'Analyze & Plan'}
+                {isAnalyzing ? '分析中' : '分析规划'}
               </button>
             ) : (
               <div className="flex items-center gap-1.5">
@@ -619,14 +619,14 @@ const SwarmCollaboration: React.FC = () => {
                     <button
                       onClick={handlePauseSwarm}
                       className="p-1.5 text-claude-textSecondary hover:text-claude-text hover:bg-claude-hover rounded-md transition-colors"
-                      title={isPaused ? 'Resume' : 'Pause'}
+                      title={isPaused ? '继续' : '暂停'}
                     >
                       {isPaused ? <Play size={14} /> : <Pause size={14} />}
                     </button>
                     <button
                       onClick={handleStopSwarm}
                       className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-md transition-colors"
-                      title="Stop"
+                      title="停止"
                     >
                       <StopCircle size={14} />
                     </button>
@@ -638,7 +638,7 @@ const SwarmCollaboration: React.FC = () => {
                     className="px-3 py-1.5 text-[12px] font-medium text-white bg-[#10B981] hover:bg-[#059669] rounded-lg transition-colors flex items-center gap-1.5"
                   >
                     <Play size={14} />
-                    Start Swarm
+                    开始协作
                   </button>
                 )}
               </div>
@@ -654,7 +654,7 @@ const SwarmCollaboration: React.FC = () => {
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <Target size={14} className="text-[#3B82F6]" />
-                  <span className="text-[12px] text-claude-text">Complexity</span>
+                  <span className="text-[12px] text-claude-text">复杂度</span>
                 </div>
                 <div className="flex items-center gap-1">
                   {Array.from({ length: 10 }).map((_, i) => (
@@ -672,7 +672,7 @@ const SwarmCollaboration: React.FC = () => {
               <div className="flex items-center gap-1.5">
                 <Activity size={14} className="text-claude-textSecondary" />
                 <span className="text-[12px] text-claude-textSecondary">
-                  {completedAgents}/{totalAgents} agents done
+                  {completedAgents}/{totalAgents} 智能体已完成
                 </span>
               </div>
             </div>
@@ -696,7 +696,7 @@ const SwarmCollaboration: React.FC = () => {
                 className="flex items-center gap-1.5 text-[12px] text-claude-textSecondary hover:text-claude-text transition-colors mb-2"
               >
                 {showVisualization ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {showVisualization ? 'Hide' : 'Show'} Agents ({totalAgents})
+                {showVisualization ? '隐藏' : '显示'} 智能体 ({totalAgents})
               </button>
               {showVisualization && (
                 <div className="grid grid-cols-2 gap-2">
@@ -717,7 +717,7 @@ const SwarmCollaboration: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5 mb-2">
                   <Split size={14} className="text-[#A855F7]" />
-                  <span className="text-[12px] font-medium text-claude-text">Task Breakdown ({session.subTasks.length})</span>
+                  <span className="text-[12px] font-medium text-claude-text">任务分解 ({session.subTasks.length})</span>
                 </div>
                 <div className="space-y-1">
                   {session.subTasks.map((task, index) => (
@@ -736,12 +736,12 @@ const SwarmCollaboration: React.FC = () => {
               <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-emerald-400" />
-                  <span className="text-[13px] font-medium text-emerald-400">Swarm Complete</span>
+                  <span className="text-[13px] font-medium text-emerald-400">协作完成</span>
                 </div>
                 <div className="mt-2 text-[12px] text-claude-textSecondary">
-                  Duration: {((session.endTime || Date.now()) - session.startTime) / 1000}s ·
-                  Agents: {totalAgents} ·
-                  Tokens: {session.agents.reduce((sum, a) => sum + a.tokensUsed, 0).toLocaleString()}
+                  耗时: {((session.endTime || Date.now()) - session.startTime) / 1000}秒 ·
+                  智能体: {totalAgents} ·
+                  令牌: {session.agents.reduce((sum, a) => sum + a.tokensUsed, 0).toLocaleString()}
                 </div>
               </div>
             )}
@@ -755,16 +755,16 @@ const SwarmCollaboration: React.FC = () => {
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-claude-hover flex items-center justify-center">
               <Users size={28} className="text-[#3B82F6]" />
             </div>
-            <h3 className="text-[14px] font-medium text-claude-text mb-2">Swarm Collaboration</h3>
+            <h3 className="text-[14px] font-medium text-claude-text mb-2">智能协作</h3>
             <p className="text-[12px] text-claude-textSecondary leading-relaxed">
-              Enter a complex task and let multiple AI agents work together in parallel to accomplish it efficiently.
+              输入复杂任务，多个AI智能体将并行协作高效完成。
             </p>
             <div className="mt-4 space-y-2 text-left">
               {[
-                'Automatic complexity analysis',
-                'Smart task decomposition',
-                'Parallel agent execution',
-                'Real-time progress tracking',
+                '自动复杂度分析',
+                '智能任务分解',
+                '并行智能体执行',
+                '实时进度跟踪',
               ].map((feature, i) => (
                 <div key={i} className="flex items-center gap-2 text-[11px] text-claude-textSecondary">
                   <ArrowRight size={12} className="text-[#3B82F6]" />

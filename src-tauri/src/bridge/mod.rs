@@ -101,6 +101,7 @@ pub struct ChatRequest {
     pub enable_streaming: Option<bool>,
     pub custom_system_prompt: Option<String>,
     pub permission_mode: Option<String>,
+    pub web_search_enabled: Option<bool>,
 }
 
 impl ChatRequest {
@@ -300,6 +301,7 @@ impl BridgeServer {
             .route("/api/conversations", post(conversations_create))
             .route("/api/conversations/{id}", get(conversation_get))
             .route("/api/conversations/{id}", post(conversation_update))
+            .route("/api/conversations/{id}", patch(conversation_patch))
             .route("/api/conversations/{id}", delete(conversation_delete))
             .route("/api/conversations/{id}/messages", get(conversation_messages))
             .route("/api/conversations/{id}/messages/{mid}", delete(conversation_message_delete))
@@ -308,6 +310,8 @@ impl BridgeServer {
             .route("/api/conversations/{id}/answer", post(conversation_answer_handler))
             .route("/api/conversations/{id}/permission", post(conversation_permission_handler))
             .route("/api/conversations/{id}/warm", post(conversation_warm_handler))
+            .route("/api/conversations/{id}/context-size", get(context_size_handler))
+            .route("/api/conversations/{id}/compact", post(compact_handler))
             .route("/api/projects", get(projects_list))
             .route("/api/projects", post(projects_create))
             .route("/api/upload", post(upload_handler))
@@ -478,6 +482,63 @@ async fn chat_handler(
 
     println!("[Chat] Received request: conv_id={}, model={}, messages={}", conv_id, model, messages.len());
 
+    // Research mode: route to research pipeline
+    if req.research_mode == Some(true) {
+        let query = messages.last().and_then(|m| m.get("content").and_then(|c| c.as_str())).unwrap_or("").to_string();
+        let providers_sync = {
+            let cm = config_manager.lock().await;
+            if let Some(cm) = cm.as_ref() {
+                cm.get_config().providers.iter().map(|p| {
+                    crate::native_engine::provider_manager::Provider {
+                        id: p.id.clone(), name: p.name.clone(), base_url: p.base_url.clone(),
+                        api_key: p.api_key.clone().unwrap_or_default(),
+                        api_format: { let d = p.base_url.contains("deepseek"); if p.provider_type=="anthropic" && !d { crate::native_engine::provider_manager::ApiFormat::Anthropic } else { crate::native_engine::provider_manager::ApiFormat::OpenAI } },
+                        models: p.models.iter().map(|m| crate::native_engine::provider_manager::ModelConfig { id: m.id.clone(), name: m.name.clone(), enabled: m.enabled, max_tokens: m.max_tokens, context_window: None, supports_vision: m.supports_vision, supports_web_search: false }).collect(),
+                        enabled: p.enabled, web_search_strategy: p.web_search_strategy.clone(),
+                    }
+                }).collect::<Vec<_>>()
+            } else { Vec::new() }
+        };
+        let resolved = {
+            let mut eg = native_engine.lock().await;
+            if let Some(e) = eg.as_mut() { e.sync_providers(providers_sync).await; e.resolve_provider(&model).await } else { None }
+        };
+        let resolved = match resolved { Some(r) => r, None => {
+            let es = async_stream::stream! { yield Ok::<Event, Infallible>(Event::default().data(serde_json::json!({"type":"error","error":format!("No provider for {}",model)}).to_string())); };
+            let mut r = Sse::new(es).keep_alive(KeepAlive::default()).into_response(); r.headers_mut().insert(CONTENT_TYPE, "text/event-stream; charset=utf-8".parse().unwrap()); return r;
+        }};
+        let api_key = resolved.provider.api_key.clone(); let base_url = resolved.provider.base_url.clone();
+        let api_fmt = match resolved.provider.api_format { crate::native_engine::provider_manager::ApiFormat::Anthropic => "anthropic", _ => "openai" }.to_string();
+        let rid = uuid::Uuid::new_v4().to_string(); let ar = state.15.clone();
+        let (btx, _) = broadcast::channel::<ResearchEvent>(256); let (mtx, mrx) = tokio::sync::mpsc::unbounded_channel::<ResearchEvent>();
+        let btx2 = btx.clone(); let req2 = ResearchRequest { query, api_key, base_url, model: model.clone(), api_format: api_fmt };
+        let handle = tokio::spawn(async move {
+            let b = btx2.clone(); let mut mrx = mrx;
+            let fh = tokio::spawn(async move { while let Some(ev) = mrx.recv().await { let _ = b.send(ev); } });
+            let o = ResearchOrchestrator::new(reqwest::Client::new());
+            if let Err(e) = o.run_pipeline(req2, mtx).await { eprintln!("[Research] Error: {}", e); }
+            let _ = fh.await;
+        });
+        { ar.lock().await.insert(rid.clone(), ResearchTask { handle, event_tx: btx.clone() }); }
+        let mut rx = btx.subscribe(); let cid = conv_id.clone(); let db = state.6.clone();
+        let stream = async_stream::stream! {
+            let mut report = String::new();
+            while let Ok(ev) = rx.recv().await {
+                if let Ok(d) = serde_json::to_value(&ev) {
+                    let t = d.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                    if t == "research_report_delta" { if let Some(txt) = d.get("text").and_then(|v| v.as_str()) { report.push_str(txt); } }
+                    let done = t == "research_done" || t == "research_error";
+                    yield Ok::<Event, Infallible>(Event::default().data(d.to_string()));
+                    if done { break; }
+                }
+            }
+            if !report.is_empty() { let db = db; let cid = cid; tokio::task::spawn_blocking(move || { db.with_conn(|conn| { let mid = uuid::Uuid::new_v4().to_string(); let now = chrono::Utc::now().to_rfc3339(); let so = crate::db::message_repo::get_messages_by_conversation(conn, &cid).unwrap_or_default().len() as i64; let _ = crate::db::message_repo::insert_message(conn, &mid, &cid, "assistant", &report, None, &now, false, so); let _ = crate::db::conversation_repo::increment_message_count(conn, &cid); }); }).await.ok(); }
+        };
+        let mut resp = Sse::new(stream).keep_alive(KeepAlive::default()).into_response();
+        resp.headers_mut().insert(CONTENT_TYPE, "text/event-stream; charset=utf-8".parse().unwrap());
+        return resp;
+    }
+
     // Sync providers from ConfigManager to NativeEngine before each request
     let providers_to_sync = {
         let cm_guard: tokio::sync::MutexGuard<'_, Option<ConfigManager>> = config_manager.lock().await;
@@ -501,7 +562,7 @@ async fn chat_handler(
                         id: m.id.clone(),
                         name: m.name.clone(),
                         enabled: m.enabled,
-                        max_tokens: m.max_tokens,
+                        max_tokens: m.max_tokens, context_window: None,
                         supports_vision: m.supports_vision,
                         supports_web_search: false,
                     }).collect(),
@@ -536,6 +597,7 @@ async fn chat_handler(
                 workspace_path: None,
                 temperature: None,
                 top_p: None,
+                web_search_enabled: req.web_search_enabled,
             };
             match engine.send_message(chat_req).await {
                 Ok(rx) => Some(rx),
@@ -801,6 +863,170 @@ async fn conversation_update(Path(id): Path<String>, State(state): State<AppStat
         })
     }).await;
     Json(serde_json::json!({ "ok": true }))
+}
+
+
+
+
+#[derive(Deserialize)]
+struct CompactRequest {
+    instruction: Option<String>,
+}
+
+async fn compact_handler(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(req): Json<CompactRequest>,
+) -> Json<serde_json::Value> {
+    let db = state.6.clone();
+    
+    let result = tokio::task::spawn_blocking(move || {
+        db.with_conn(|conn| -> anyhow::Result<serde_json::Value> {
+            // Get all messages
+            let messages = crate::db::message_repo::get_messages_by_conversation(conn, &id)?;
+            
+            if messages.len() < 4 {
+                return Ok(serde_json::json!({
+                    "success": false,
+                    "error": "Not enough messages to compact (minimum 4)"
+                }));
+            }
+            
+            // Split: keep last 3 messages, compact the rest
+            let split_point = messages.len().saturating_sub(3);
+            let old_messages = &messages[..split_point];
+            let new_messages = &messages[split_point..];
+            
+            // Generate summary from old messages
+            let mut summary_parts = Vec::new();
+            for msg in old_messages.iter() {
+                if msg.role == "user" || msg.role == "assistant" {
+                    let preview: String = msg.content.chars().take(200).collect();
+                    summary_parts.push(format!("[{}]: {}", msg.role, preview));
+                }
+            }
+            let summary = format!("**Previous conversation summary:**\n\n{}", summary_parts.join("\n\n"));
+            
+            // Calculate tokens saved
+            let old_tokens: usize = old_messages.iter().map(|m| m.content.len()).sum();
+            let new_tokens = summary.len();
+            let tokens_saved = old_tokens.saturating_sub(new_tokens);
+            
+            // Delete old messages
+            let split_order = old_messages.last().map(|m| m.sort_order + 1).unwrap_or(0);
+            crate::db::message_repo::delete_messages_before(conn, &id, split_order)?;
+            
+            // Insert summary message as compact boundary
+            let summary_id = uuid::Uuid::new_v4().to_string();
+            let now = chrono::Utc::now().to_rfc3339();
+            crate::db::message_repo::insert_message(
+                conn, &summary_id, &id, "system", &summary, 
+                None, &now, true, 0
+            )?;
+            
+            Ok(serde_json::json!({
+                "success": true,
+                "summary": summary,
+                "tokensSaved": tokens_saved,
+                "messagesCompacted": old_messages.len(),
+                "messagesRemaining": new_messages.len() + 1
+            }))
+        })
+    }).await;
+    
+    match result {
+        Ok(Ok(Ok(data))) => Json(data),
+        Ok(Ok(Err(e))) => Json(serde_json::json!({"success": false, "error": e.to_string()})),
+        _ => Json(serde_json::json!({"success": false, "error": "Internal error"})),
+    }
+}
+async fn context_size_handler(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Json<serde_json::Value> {
+    let db = state.6.clone();
+    
+    let result = tokio::task::spawn_blocking(move || {
+        db.with_conn(|conn| {
+            // Get conversation info
+            let conv = crate::db::conversation_repo::get_conversation(conn, &id)?;
+            let messages = crate::db::message_repo::get_messages_by_conversation(conn, &id)?;
+            
+            // Estimate current token count
+            // Simplified: Chinese chars ~2 tokens each, English words ~1.5 tokens
+            let total_chars: usize = messages.iter()
+                .map(|m| m.content.len())
+                .sum();
+            let estimated_tokens = (total_chars as f64 * 1.5) as u32;
+            
+            // Get model context limit
+            let model_id = conv.as_ref()
+                .and_then(|c| c.model.as_deref())
+                .unwrap_or("default");
+            let context_limit = crate::native_engine::provider_manager::get_default_context_size(model_id);
+            
+            // Calculate usage percentage
+            let usage_percent = if context_limit > 0 {
+                (estimated_tokens as f64 / context_limit as f64 * 100.0).round() as u32
+            } else {
+                0
+            };
+            
+            Ok::<serde_json::Value, anyhow::Error>(serde_json::json!({
+                "tokens": estimated_tokens,
+                "limit": context_limit,
+                "model": model_id,
+                "message_count": messages.len(),
+                "usage_percent": usage_percent
+            }))
+        })
+    }).await;
+    
+    match result {
+        Ok(Ok(Ok(data))) => Json(data),
+        _ => Json(serde_json::json!({
+            "tokens": 0,
+            "limit": 32768,
+            "error": "Failed to calculate context size"
+        })),
+    }
+}
+#[derive(Deserialize)]
+struct ConversationPatch {
+    title: Option<String>,
+    model: Option<String>,
+    provider: Option<String>,
+    workspace_path: Option<String>,
+    project_id: Option<String>,
+    research_mode: Option<bool>,
+    pinned: Option<bool>,
+    archived: Option<bool>,
+}
+
+async fn conversation_patch(Path(id): Path<String>, State(state): State<AppState>, Json(patch): Json<ConversationPatch>) -> Json<serde_json::Value> {
+    let db = state.6.clone();
+    let now = chrono::Utc::now().to_rfc3339();
+    let result = tokio::task::spawn_blocking(move || {
+        db.with_conn(|conn| {
+            crate::db::conversation_repo::update_conversation(
+                conn, &id,
+                patch.title.as_deref(),
+                patch.model.as_deref(),
+                patch.provider.as_deref(),
+                patch.workspace_path.as_deref(),
+                patch.project_id.as_deref(),
+                patch.research_mode,
+                patch.pinned,
+                patch.archived,
+                Some(&now),
+                None,
+            )
+        })
+    }).await;
+    match result {
+        Ok(Ok(Ok(()))) => Json(serde_json::json!({ "ok": true })),
+        _ => Json(serde_json::json!({ "ok": false, "error": "Failed to update conversation" })),
+    }
 }
 
 async fn conversation_delete(Path(id): Path<String>, State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -1479,7 +1705,7 @@ async fn sync_provider_manager(state: &AppState) {
                         id: m.id.clone(),
                         name: m.name.clone(),
                         enabled: m.enabled,
-                        max_tokens: m.max_tokens,
+                        max_tokens: m.max_tokens, context_window: None,
                         supports_vision: m.supports_vision,
                         supports_web_search: p.supports_web_search,
                     }).collect(),
@@ -1524,7 +1750,7 @@ async fn sync_provider_manager_owned(state: AppState) {
                         id: m.id.clone(),
                         name: m.name.clone(),
                         enabled: m.enabled,
-                        max_tokens: m.max_tokens,
+                        max_tokens: m.max_tokens, context_window: None,
                         supports_vision: m.supports_vision,
                         supports_web_search: p.supports_web_search,
                     }).collect(),
@@ -1545,7 +1771,14 @@ async fn sync_provider_manager_owned(state: AppState) {
 }
 
 async fn test_web_search_capability(_id: &str, _api_key: &str, _base_url: &str, _provider_type: &str) -> serde_json::Value {
-    serde_json::json!({ "ok": false, "reason": "Web search test not yet implemented" })
+    let client = match reqwest::Client::builder().timeout(std::time::Duration::from_secs(5)).build() {
+        Ok(c) => c, Err(e) => return serde_json::json!({ "ok": false, "reason": format!("Client error: {}", e) }),
+    };
+    match client.get("https://api.duckduckgo.com/?q=test&format=json&no_html=1").send().await {
+        Ok(resp) if resp.status().is_success() => serde_json::json!({ "ok": true, "strategy": "duckduckgo" }),
+        Ok(resp) => serde_json::json!({ "ok": false, "reason": format!("HTTP {}", resp.status()) }),
+        Err(e) => serde_json::json!({ "ok": false, "reason": format!("Unreachable: {}", e) }),
+    }
 }
 
 async fn config_get(State(state): State<AppState>) -> Json<serde_json::Value> {
@@ -1982,7 +2215,7 @@ async fn research_start_handler(State(state): State<AppState>, Json(req): Json<C
                         id: m.id.clone(),
                         name: m.name.clone(),
                         enabled: m.enabled,
-                        max_tokens: m.max_tokens,
+                        max_tokens: m.max_tokens, context_window: None,
                         supports_vision: m.supports_vision,
                         supports_web_search: false,
                     }).collect(),
@@ -2017,12 +2250,7 @@ async fn research_start_handler(State(state): State<AppState>, Json(req): Json<C
     let (mpsc_tx, mut mpsc_rx) = tokio::sync::mpsc::unbounded_channel::<ResearchEvent>();
 
     let bcast_tx_clone = bcast_tx.clone();
-    let research_request = ResearchRequest {
-        query: query.clone(),
-        api_key,
-        base_url,
-        model,
-    };
+    let research_request = ResearchRequest { query: query.clone(), api_key, base_url, model, api_format: match resolved.provider.api_format { crate::native_engine::provider_manager::ApiFormat::Anthropic => "anthropic".to_string(), _ => "openai".to_string() } };
 
     let handle = tokio::spawn(async move {
         let bcast = bcast_tx_clone.clone();
@@ -2139,7 +2367,7 @@ async fn multiagent_research_handler(
                         id: m.id.clone(),
                         name: m.name.clone(),
                         enabled: m.enabled,
-                        max_tokens: m.max_tokens,
+                        max_tokens: m.max_tokens, context_window: None,
                         supports_vision: m.supports_vision,
                         supports_web_search: false,
                     }).collect(),
@@ -2928,7 +3156,7 @@ async fn workflow_execute(
             id: m.id.clone(),
             name: m.name.clone(),
             enabled: m.enabled,
-            max_tokens: m.max_tokens,
+            max_tokens: m.max_tokens, context_window: None,
             supports_vision: m.supports_vision,
             supports_web_search: false,
         }).collect(),
@@ -2941,6 +3169,7 @@ async fn workflow_execute(
         name: model_config.name.clone(),
         enabled: model_config.enabled,
         max_tokens: model_config.max_tokens,
+        context_window: model_config.context_window,
         supports_vision: model_config.supports_vision,
         supports_web_search: false,
     };

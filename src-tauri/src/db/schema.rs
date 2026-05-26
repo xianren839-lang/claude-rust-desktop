@@ -76,4 +76,17 @@ CREATE INDEX IF NOT EXISTS idx_conversations_model ON conversations(model);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_message_id ON tool_calls(message_id);
 CREATE INDEX IF NOT EXISTS idx_attachments_message_id ON attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_project_files_project_id ON project_files(project_id);
+
+-- memories table: base columns only (V2 columns added by migration)
+CREATE TABLE IF NOT EXISTS memories (
+    id TEXT PRIMARY KEY,
+    workspace_path TEXT NOT NULL,
+    conversation_id TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    tags TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_memories_workspace_path ON memories(workspace_path);
+CREATE INDEX IF NOT EXISTS idx_memories_created_at ON memories(created_at);
 "#;

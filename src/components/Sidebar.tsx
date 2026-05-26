@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { useStreamingStore } from '../stores/useStreamingStore';
@@ -172,17 +172,17 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
   const userMenuRef = useRef<HTMLDivElement>(null);
   const userBtnRef = useRef<HTMLButtonElement>(null);
 
-  // Map labels to the correct custom icon
-  const getIcon = (label: string, size: number) => {
+  // Map nav ids to the correct custom icon
+  const getIcon = (id: string, size: number) => {
     const className = "dark:invert transition-[filter] duration-200";
-    switch (label) {
-      case 'Chats': return <IconChatBubble size={size} className={className} />;
-      case 'Projects': return <IconProjects size={size} className={className} />;
-      case 'Artifacts': return <IconArtifactsExact size={size} className={className} />;
-      case 'Models': return <IconModels size={size} className={className} />;
-      case 'Design': return <IconPalette size={size} className={className} />;
-      case 'Directory': return <IconDirectory size={size} className={className} />;
-      case 'Code': return <IconCode size={size} className={className} />;
+    switch (id) {
+      case 'chats': return <IconChatBubble size={size} className={className} />;
+      case 'projects': return <IconProjects size={size} className={className} />;
+      case 'artifacts': return <IconArtifactsExact size={size} className={className} />;
+      case 'models': return <IconModels size={size} className={className} />;
+      case 'design': return <IconPalette size={size} className={className} />;
+      case 'directory': return <IconDirectory size={size} className={className} />;
+      case 'code': return <IconCode size={size} className={className} />;
       default: return <IconChatBubble size={size} className={className} />;
     }
   };
@@ -200,36 +200,55 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     }
   };
 
-  const handleNavClick = (label: string) => {
-    if (label === 'Chats') {
+  const handleNavClick = (id: string) => {
+    if (id === 'chats') {
       navigate('/chats');
       return;
     }
-    if (label === 'Projects') {
+    if (id === 'projects') {
       navigate('/projects');
       return;
     }
-    if (label === 'Artifacts') {
+    if (id === 'artifacts') {
       navigate('/artifacts');
       return;
     }
-    if (label === 'Models') {
+    if (id === 'models') {
       navigate('/models');
       return;
     }
-    if (label === 'Design') {
+    if (id === 'design') {
       navigate('/design');
       return;
     }
-    if (label === 'Directory') {
+    if (id === 'directory') {
       onOpenDirectory?.();
       return;
     }
-    if (label === 'Code') {
+    if (id === 'code') {
       // Disabled temporarily
       return;
     }
   };
+
+  const fetchChats = useCallback(async () => {
+    try {
+      const data = await getConversations();
+      console.log('[Sidebar] Fetched conversations:', data);
+      if (Array.isArray(data)) {
+        // 去重：根据 id 去重，保留最新的
+        const seen = new Set<string>();
+        const unique = data.filter((chat: any) => {
+          if (seen.has(chat.id)) return false;
+          seen.add(chat.id);
+          return true;
+        });
+        setChats(unique);
+      }
+    } catch (e) {
+      console.error("Failed to fetch chats", e);
+    }
+  }, []);
 
   useEffect(() => {
     setUserUser(getUser());
@@ -263,24 +282,14 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
 
     window.addEventListener('conversationTitleUpdated', handleTitleUpdate);
     window.addEventListener('userProfileUpdated', handleProfileUpdate);
+    window.addEventListener('conversationsUpdated', handleTitleUpdate);
 
     return () => {
       window.removeEventListener('conversationTitleUpdated', handleTitleUpdate);
       window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+      window.removeEventListener('conversationsUpdated', handleTitleUpdate);
     };
-  }, [refreshTrigger]);
-
-  const fetchChats = async () => {
-    try {
-      const data = await getConversations();
-      console.log('[Sidebar] Fetched conversations:', data);
-      if (Array.isArray(data)) {
-        setChats(data);
-      }
-    } catch (e) {
-      console.error("Failed to fetch chats", e);
-    }
-  };
+  }, [refreshTrigger, fetchChats]);
 
   const fetchPlan = async () => {
     try {
@@ -309,7 +318,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     e.stopPropagation();
     if (chats[index]) {
       setRenameChatId(chats[index].id);
-      setRenameInitialTitle(chats[index].title || 'New Chat');
+      setRenameInitialTitle(chats[index].title || t('customize.untitledConversation'));
       setShowRenameModal(true);
     }
     setActiveMenuIndex(null);
@@ -448,9 +457,9 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
           >
             <div className="flex gap-1">
               {[
-                { id: 'chat' as const, icon: <MessageSquare size={14} />, label: 'Chat' },
-                { id: 'cowork' as const, icon: <Users size={14} />, label: 'Cowork' },
-                { id: 'code' as const, icon: <IconCode size={14} />, label: 'Code' }
+                { id: 'chat' as const, icon: <MessageSquare size={14} />, labelKey: 'sidebar.chatTab' },
+                { id: 'cowork' as const, icon: <Users size={14} />, labelKey: 'sidebar.coworkTab' },
+                { id: 'code' as const, icon: <IconCode size={14} />, labelKey: 'sidebar.codeTab' }
               ].map(tab => (
                 <button
                   key={tab.id}
@@ -462,7 +471,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                   }`}
                 >
                   {tab.icon}
-                  {tab.label}
+                  {t(tab.labelKey)}
                 </button>
               ))}
             </div>
@@ -535,7 +544,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                 className={`leading-none transition-opacity duration-200 text-left opacity-100 block`}
                 style={{ fontSize: '14px', fontWeight: 400 }}
               >
-                {t('sidebar.browser') || '浏览器'}
+                {t('sidebar.browser')}
               </span>
             </button>
           </div>
@@ -597,9 +606,9 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
           <nav className="space-y-0.5 mb-6">
             {NAV_ITEMS.map((item) => (
               <button
-                key={item.label}
-                onClick={() => handleNavClick(item.label)}
-                className={`w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap ${(location.pathname === '/chats' && item.label === 'Chats') || (location.pathname === '/projects' && item.label === 'Projects') ? 'bg-claude-hover' : ''}`}
+                key={item.id}
+                onClick={() => handleNavClick(item.id)}
+                className={`w-full flex items-center justify-start text-claude-text hover:bg-claude-hover rounded-lg transition-colors group overflow-hidden whitespace-nowrap ${(location.pathname === '/chats' && item.id === 'chats') || (location.pathname === '/projects' && item.id === 'projects') ? 'bg-claude-hover' : ''}`}
                 style={{
                   fontWeight: 400,
                   paddingTop: '2px',
@@ -609,13 +618,13 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                 }}
               >
                 <div className={`text-claude-text flex-shrink-0 transition-colors flex items-center justify-center`}>
-                  {getIcon(item.label, 27)}
+                  {getIcon(item.id, 27)}
                 </div>
                 <span
                   className={`leading-none transition-opacity duration-200 text-left ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100 block'}`}
                   style={{ fontSize: '14px' }}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </span>
               </button>
             ))}
@@ -674,7 +683,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
                       className="text-claude-text truncate leading-snug"
                       style={{ fontSize: `${tunerConfig?.recentsFontSize || 13}px` }}
                     >
-                      {chat.title || 'New Chat'}
+                      {chat.title || t('customize.untitledConversation')}
                     </div>
                     {chat.project_name && (
                       <div className="text-[11px] text-claude-textSecondary truncate leading-snug mt-0.5 opacity-60">
@@ -950,6 +959,7 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
           </div>
         )
       }
+
       {/* Fixed Layout Tuner (Removed) */}
 
       <SearchModal

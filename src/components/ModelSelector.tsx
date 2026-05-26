@@ -58,6 +58,7 @@ function hasThinkingVariant(_modelId: string): boolean {
 // - claude-opus-4-6 → "Opus 4.6", claude-haiku-4-5-20251001 → "Haiku 4.5"
 // - GLM-5 → "GLM 5", Deepseek-V3.2 → "Deepseek V3.2" (hyphens become spaces)
 // - Strips provider/org prefix (e.g. "Pro/zai-org/GLM-5" → "GLM 5")
+// - But keeps full name if the suffix after slash is very short (e.g. "openrouter/free" stays "openrouter/free")
 function prettifyModelName(name?: string, id?: string): string {
   for (const candidate of [id, name]) {
     if (!candidate) continue;
@@ -70,8 +71,15 @@ function prettifyModelName(name?: string, id?: string): string {
   const raw = name || id || '';
   if (!raw) return 'Model';
   const lastSlash = raw.lastIndexOf('/');
-  const trimmed = lastSlash >= 0 ? raw.slice(lastSlash + 1) : raw;
-  return trimmed.replace(/-/g, ' ');
+  if (lastSlash >= 0) {
+    const suffix = raw.slice(lastSlash + 1);
+    // If suffix is very short (like "free"), show full name to avoid confusion
+    if (suffix.length <= 5 && !suffix.includes('-')) {
+      return raw.replace(/-/g, ' ');
+    }
+    return suffix.replace(/-/g, ' ');
+  }
+  return raw.replace(/-/g, ' ');
 }
 
 interface ModelSelectorProps {

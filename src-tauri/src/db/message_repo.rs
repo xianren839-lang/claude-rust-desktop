@@ -106,3 +106,23 @@ pub fn update_message_content(conn: &Connection, id: &str, content: &str) -> Res
     stmt.execute(params![content, id])?;
     Ok(())
 }
+
+pub fn delete_messages_before(
+    conn: &Connection,
+    conversation_id: &str,
+    before_sort_order: i64,
+) -> Result<()> {
+    conn.execute(
+        "DELETE FROM messages WHERE conversation_id = ?1 AND sort_order < ?2",
+        params![conversation_id, before_sort_order],
+    )?;
+    Ok(())
+}
+
+pub fn count_messages(conn: &Connection, conversation_id: &str) -> Result<i64> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT COUNT(*) FROM messages WHERE conversation_id = ?1"
+    )?;
+    let count: i64 = stmt.query_row(params![conversation_id], |row| row.get(0))?;
+    Ok(count)
+}

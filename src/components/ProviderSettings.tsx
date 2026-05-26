@@ -809,7 +809,26 @@ const ProviderSettings: React.FC = () => {
                 {/* Models */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[12px] text-claude-textSecondary font-medium">模型列表</label>
+                    <div className="flex items-center gap-3">
+                      <label className="text-[12px] text-claude-textSecondary font-medium">模型列表</label>
+                      {(selected.models || []).length > 0 && (
+                        <label className="flex items-center gap-1.5 px-2 py-0.5 bg-claude-hover border border-claude-border/40 rounded-md cursor-pointer hover:bg-claude-hover/80 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={(selected.models || []).every(m => m.enabled !== false)}
+                            onChange={(e) => {
+                              const allEnabled = (selected.models || []).every(m => m.enabled !== false);
+                              const models = (selected.models || []).map(m => ({ ...m, enabled: allEnabled ? false : true }));
+                              handleUpdate(selected.id, { models });
+                            }}
+                            className="w-3.5 h-3.5 rounded border-claude-border text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-[11px] font-medium text-claude-textSecondary select-none">
+                            {(selected.models || []).every(m => m.enabled !== false) ? '取消全选' : '全选'}
+                          </span>
+                        </label>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleFetchModels(selected)}

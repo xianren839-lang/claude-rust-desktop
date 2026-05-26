@@ -4202,6 +4202,26 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
                     onModelChange={handleModelChange}
                     isNewChat={true}
                   />
+                    {(() => {
+                      const tokens = contextInfo?.tokens ?? 0;
+                      const limit = contextInfo?.limit ?? 200000;
+                      const pct = limit > 0 ? Math.min(tokens / limit, 1) : 0;
+                      const color = pct > 0.8 ? '#dc2626' : pct > 0.5 ? '#d97706' : '#6b7280';
+                      const r = 7, c = 2 * Math.PI * r, dash = pct * c;
+                      const tip = tokens > 0
+                        ? `${tokens.toLocaleString()} / ${limit.toLocaleString()} tokens` + '\n' + (pct * 100).toFixed(1) + '% 上下文已使用'
+                        : '上下文用量';
+                      return (
+                        <div className="flex items-center ml-1 select-none cursor-default" title={tip}>
+                          <svg width="18" height="18" viewBox="0 0 18 18">
+                            <circle cx="9" cy="9" r={r} fill="none" stroke="#d4d4d4" strokeWidth="2" />
+                            {tokens > 0 && <circle cx="9" cy="9" r={r} fill="none" stroke={color} strokeWidth="2"
+                              strokeDasharray={`${dash} ${c}`} strokeLinecap="round"
+                              transform="rotate(-90 9 9)" />}
+                          </svg>
+                        </div>
+                      );
+                    })()}
                   {speechSupported && (
                     <button
                       onMouseDown={(e) => e.preventDefault()}
@@ -4577,24 +4597,6 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
                         </div>
                       </div>
                     )}
-                    {contextInfo && contextInfo.tokens > 0 && (() => {
-                      const pct = Math.min(contextInfo.tokens / contextInfo.limit, 1);
-                      const color = pct > 0.8 ? '#dc2626' : pct > 0.5 ? '#d97706' : '#6b7280';
-                      const r = 7, c = 2 * Math.PI * r, dash = pct * c;
-                      const label = contextInfo.tokens.toLocaleString() + ' tokens';
-                      const pctLabel = (pct * 100).toFixed(1) + '% 上下文已使用';
-                      return (
-                        <div className="flex items-center gap-1 ml-1 select-none" title={pctLabel}>
-                          <svg width="18" height="18" viewBox="0 0 18 18">
-                            <circle cx="9" cy="9" r={r} fill="none" stroke="#d4d4d4" strokeWidth="2" />
-                            <circle cx="9" cy="9" r={r} fill="none" stroke={color} strokeWidth="2"
-                              strokeDasharray={`${dash} ${c}`} strokeLinecap="round"
-                              transform="rotate(-90 9 9)" />
-                          </svg>
-                          <span className="text-[11px] whitespace-nowrap" style={{ color: '#6b7280' }}>{label}</span>
-                        </div>
-                      );
-                    })()}
                     {tokenUsage && (tokenUsage.input_tokens > 0 || tokenUsage.output_tokens > 0) && (
                       <div className="flex items-center gap-1 ml-1 select-none" title={`Input: ${tokenUsage.input_tokens.toLocaleString()} | Output: ${tokenUsage.output_tokens.toLocaleString()}`}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -4613,6 +4615,26 @@ const MainContent = ({ onNewChat, resetKey, tunerConfig, onOpenDocument, onArtif
                       isNewChat={false}
                       dropdownPosition="top"
                     />
+                    {(() => {
+                      const tokens = contextInfo?.tokens ?? 0;
+                      const limit = contextInfo?.limit ?? 200000;
+                      const pct = limit > 0 ? Math.min(tokens / limit, 1) : 0;
+                      const color = pct > 0.8 ? '#dc2626' : pct > 0.5 ? '#d97706' : '#6b7280';
+                      const r = 7, c = 2 * Math.PI * r, dash = pct * c;
+                      const tip = tokens > 0
+                        ? `${tokens.toLocaleString()} / ${limit.toLocaleString()} tokens` + '\n' + (pct * 100).toFixed(1) + '% 上下文已使用'
+                        : '上下文用量';
+                      return (
+                        <div className="flex items-center ml-1 select-none cursor-default" title={tip}>
+                          <svg width="18" height="18" viewBox="0 0 18 18">
+                            <circle cx="9" cy="9" r={r} fill="none" stroke="#d4d4d4" strokeWidth="2" />
+                            {tokens > 0 && <circle cx="9" cy="9" r={r} fill="none" stroke={color} strokeWidth="2"
+                              strokeDasharray={`${dash} ${c}`} strokeLinecap="round"
+                              transform="rotate(-90 9 9)" />}
+                          </svg>
+                        </div>
+                      );
+                    })()}
                     {speechSupported && (
                       <button
                         onMouseDown={(e) => e.preventDefault()}

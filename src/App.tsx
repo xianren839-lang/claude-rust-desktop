@@ -32,7 +32,6 @@ import ProjectsPage from './components/ProjectsPage';
 import ModelsPage from './components/ModelsPage';
 import DesignPage from './components/DesignPage';
 import DirectoryModal from './components/DirectoryModal';
-import PromptSuggestionsPanel from './components/PromptSuggestionsPanel';
 import { tauriAPI } from './utils/tauriAPI';
 
 const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
@@ -246,7 +245,6 @@ const Layout = () => {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('onboarding_done'));
   const [needsGitBash, setNeedsGitBash] = useState(false);
   const [showDirectoryModal, setShowDirectoryModal] = useState(false);
-  const [showPromptSuggestions, setShowPromptSuggestions] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -555,43 +553,65 @@ const Layout = () => {
         </div>
         <Sidebar isCollapsed={isSidebarCollapsed} toggleSidebar={() => setIsSidebarCollapsed(!isSidebarCollapsed)} refreshTrigger={refreshTrigger} onNewChatClick={handleNewChat} onOpenSettings={() => { setShowSettings(true); setShowUpgrade(false); }} onOpenUpgrade={() => { setShowUpgrade(true); setShowSettings(false); }} onOpenDirectory={() => setShowDirectoryModal(true)} onCloseOverlays={() => { setShowSettings(false); setShowUpgrade(false); }} tunerConfig={tunerConfig} setTunerConfig={setTunerConfig} titleBarHeight={titleBarHeight} />
         <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden relative" style={{ paddingTop: `${titleBarHeight}px` }}>
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150] flex items-center rounded-xl p-0.5 pointer-events-auto" style={{ backgroundColor: 'var(--bg-mode-tabs)' as React.CSSProperties['backgroundColor'] }}>
-            <Tooltip text="Chat" shortcut="Ctrl+1"><button className="px-3.5 py-1 text-[13px] font-medium rounded-[10px] text-claude-text shadow-sm transition-colors" style={{ backgroundColor: 'var(--bg-mode-tab-active)', fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '0.01em' }}>Chat</button></Tooltip>
-            <Tooltip text="Cowork" shortcut="Ctrl+2"><button className="px-3.5 py-1 text-[13px] font-medium rounded-[10px] text-claude-textSecondary hover:text-claude-text transition-colors" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '0.01em' }}>Cowork</button></Tooltip>
-            <Tooltip text="Code" shortcut="Ctrl+3"><button className="px-3.5 py-1 text-[13px] font-medium rounded-[10px] text-claude-textSecondary hover:text-claude-text transition-colors" style={{ fontFamily: 'Inter, system-ui, -apple-system, sans-serif', letterSpacing: '0.01em' }}>Code</button></Tooltip>
-          </div>
           {isChatMode && !showSettings && !showUpgrade && location.pathname !== '/chats' && location.pathname !== '/customize' && location.pathname !== '/projects' && location.pathname !== '/artifacts' && (
             <ChatHeader title={currentChatTitle} showArtifacts={showArtifacts} documentPanelDoc={documentPanelDoc} onOpenArtifacts={handleOpenArtifacts} hasArtifacts={artifacts.length > 0} onTitleRename={handleTitleChange} />
           )}
           <div className="flex-1 flex overflow-hidden relative" ref={contentContainerRef}>
-            <div className="flex-1 flex flex-col h-full min-w-0">
-              {showSettings ? (
-                <SettingsPage onClose={() => setShowSettings(false)} />
-              ) : showUpgrade ? (
-                <UpgradePlan onClose={() => setShowUpgrade(false)} />
-              ) : location.pathname === '/chats' ? (
-                <ChatsPage />
-              ) : location.pathname === '/customize' ? (
-                <CustomizePage onCreateWithClaude={() => {
-                  sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
-                  handleNewChat();
-                  window.location.hash = '#/';
-                }} />
-              ) : location.pathname === '/projects' ? (
-                <ProjectsPage />
-              ) : location.pathname === '/artifacts' ? (
-                <ArtifactsPage onTryPrompt={(prompt) => {
-                  if (prompt === '__remix__') sessionStorage.setItem('artifact_prompt', '__remix__');
-                  else sessionStorage.setItem('artifact_prompt', prompt);
-                  handleNewChat();
-                  window.location.hash = '#/';
-                }} />
-              ) : location.pathname === '/models' ? (
-                <ModelsPage />
-              ) : location.pathname === '/design' ? (
-                <DesignPage />
-              ) : (
+            <div className="flex-1 flex flex-col h-full min-w-0 relative">
+              {/* MainContent always rendered to preserve state */}
+              <div className={`absolute inset-0 flex flex-col h-full min-w-0 transition-opacity duration-300 ${showSettings || showUpgrade || location.pathname === '/chats' || location.pathname === '/customize' || location.pathname === '/projects' || location.pathname === '/artifacts' || location.pathname === '/models' || location.pathname === '/design' ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
                 <MainContent onNewChat={refreshSidebar} resetKey={newChatKey} tunerConfig={tunerConfig} onOpenDocument={handleOpenDocument} onArtifactsUpdate={handleArtifactsUpdate} onOpenArtifacts={handleOpenArtifacts} onTitleChange={handleTitleChange} onChatModeChange={handleChatModeChange} />
+              </div>
+              
+              {/* Overlay pages */}
+              {showSettings && (
+                <div className="absolute inset-0 z-[70] flex flex-col h-full min-w-0 bg-claude-bg">
+                  <SettingsPage onClose={() => setShowSettings(false)} />
+                </div>
+              )}
+              {showUpgrade && (
+                <div className="absolute inset-0 z-[70] flex flex-col h-full min-w-0 bg-claude-bg">
+                  <UpgradePlan onClose={() => setShowUpgrade(false)} />
+                </div>
+              )}
+              {location.pathname === '/chats' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <ChatsPage />
+                </div>
+              )}
+              {location.pathname === '/customize' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <CustomizePage onCreateWithClaude={() => {
+                    sessionStorage.setItem('prefill_input', '让我们一起使用你的 skill-creator skill 来创建一个 skill 吧。请先问我这个 skill 应该做什么。');
+                    handleNewChat();
+                    window.location.hash = '#/';
+                  }} />
+                </div>
+              )}
+              {location.pathname === '/projects' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <ProjectsPage />
+                </div>
+              )}
+              {location.pathname === '/artifacts' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <ArtifactsPage onTryPrompt={(prompt) => {
+                    if (prompt === '__remix__') sessionStorage.setItem('artifact_prompt', '__remix__');
+                    else sessionStorage.setItem('artifact_prompt', prompt);
+                    handleNewChat();
+                    window.location.hash = '#/';
+                  }} />
+                </div>
+              )}
+              {location.pathname === '/models' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <ModelsPage />
+                </div>
+              )}
+              {location.pathname === '/design' && (
+                <div className="absolute inset-0 z-10 flex flex-col h-full min-w-0 bg-claude-bg">
+                  <DesignPage />
+                </div>
               )}
             </div>
             <div className={`h-full bg-claude-bg transition-all duration-300 ease-out flex z-20 relative ${(documentPanelDoc || showArtifacts) ? 'border-l border-claude-border' : ''} ${!(documentPanelDoc || showArtifacts) ? 'pointer-events-none' : ''}`} style={{ width: documentPanelDoc ? `${documentPanelWidth}%` : showArtifacts ? '360px' : '0px', opacity: (documentPanelDoc || showArtifacts) ? 1 : 0, overflow: 'hidden' }}>
@@ -647,16 +667,6 @@ const Layout = () => {
         </div>
       )}
       <DirectoryModal isOpen={showDirectoryModal} onClose={() => setShowDirectoryModal(false)} />
-      {showPromptSuggestions && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100]">
-          <PromptSuggestionsPanel onSelectPrompt={(prompt) => {
-            sessionStorage.setItem('prefill_input', prompt);
-            setShowPromptSuggestions(false);
-            handleNewChat();
-            window.location.hash = '#/';
-          }} />
-        </div>
-      )}
     </>
   );
 };

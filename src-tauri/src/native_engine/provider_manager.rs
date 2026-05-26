@@ -27,6 +27,7 @@ pub struct ModelConfig {
     pub name: String,
     pub enabled: bool,
     pub max_tokens: Option<u32>,
+    pub context_window: Option<u32>,
     pub supports_vision: bool,
     pub supports_web_search: bool,
 }
@@ -190,5 +191,19 @@ impl ProviderManager {
         } else {
             eprintln!("[ProviderManager] Providers saved successfully after deletion");
         }
+    }
+}
+
+pub fn get_default_context_size(model_id: &str) -> u32 {
+    match model_id {
+        id if id.contains("gpt-4o") || id.contains("claude-3.5") || id.contains("claude-sonnet-4") => 200_000,
+        id if id.contains("gpt-4-turbo") || id.contains("claude-3") => 128_000,
+        id if id.contains("gpt-4") => 8_192,
+        id if id.contains("gpt-3.5") => 16_384,
+        id if id.contains("claude-2") => 100_000,
+        id if id.contains("deepseek") => 64_000,
+        id if id.contains("qwen") || id.contains("qwq") => 128_000,
+        id if id.contains("gemini") => 1_000_000,
+        _ => 32_768,
     }
 }

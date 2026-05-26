@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Search, Plus, ChevronDown, ArrowLeft, MoreVertical, Star, ArrowUp, FileText, Trash, Pencil, MessageSquare, X, Upload, Check, AudioLines, ChevronRight, Archive } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Search, Plus, ChevronDown, ArrowLeft, MoreVertical, Star, FileText, Trash, Pencil, X, Check, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Paperclip, ListCollapse } from 'lucide-react';
-import { getProjects, createProject, getProject, updateProject, deleteProject, uploadProjectFile, deleteProjectFile, createProjectConversation, deleteConversation, getSkills, Project, ProjectFile } from '../api';
-import ModelSelector, { SelectableModel } from './ModelSelector';
-import { IconPlus } from './Icons';
+import { getProjects, createProject, getProject, updateProject, deleteProject, deleteProjectFile, createProjectConversation, getProjectConversations, Project, ProjectFile } from '../api';
+import { tauriAPI } from '../utils/tauriAPI';
 import startProjectsImg from '../assets/icons/start-projects.png';
 import { useI18n } from '../hooks/useI18n';
 
@@ -20,8 +18,6 @@ const ProjectsPage = () => {
   const [currentProject, setCurrentProject] = useState<any>(null);
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [instructionsText, setInstructionsText] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editName, setEditName] = useState('');
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
@@ -31,58 +27,13 @@ const ProjectsPage = () => {
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [editDetailsName, setEditDetailsName] = useState('');
   const [editDetailsDesc, setEditDetailsDesc] = useState('');
-  const [message, setMessage] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [showPlusMenu, setShowPlusMenu] = useState(false);
-  const [showSkillsSubmenu, setShowSkillsSubmenu] = useState(false);
-  const [enabledSkills, setEnabledSkills] = useState<Array<{ id: string; name: string; description?: string }>>([]);
-  const [selectedSkill, setSelectedSkill] = useState<{ name: string; slug: string; description?: string } | null>(null);
-  const plusMenuRef = useRef<HTMLDivElement>(null);
-  const plusBtnRef = useRef<HTMLButtonElement>(null);
+  const [showDetailMenu, setShowDetailMenu] = useState(false);
+  const [editingWorkspace, setEditingWorkspace] = useState(false);
 
-  const isSelfHostedMode = localStorage.getItem('user_mode') === 'selfhosted';
-  const selectorModels = useMemo<SelectableModel[]>(() => {
-    if (isSelfHostedMode) {
-      try {
-        const chatModels = JSON.parse(localStorage.getItem('chat_models') || '[]');
-        if (chatModels.length > 0) {
-          const tierDescMap: Record<string, string> = {
-            'opus': 'Most capable for ambitious work',
-            'sonnet': 'Most efficient for everyday tasks',
-            'haiku': 'Fastest for quick answers',
-          };
-          return chatModels.map((m: any) => ({
-            id: m.id,
-            name: m.name || m.id,
-            enabled: 1,
-            tier: m.tier || 'extra',
-            description: m.tier && tierDescMap[m.tier] ? tierDescMap[m.tier] : undefined,
-          }));
-        }
-      } catch (_) { }
-    }
-    return [
-      { id: 'claude-opus-4-6', name: 'Opus 4.6', enabled: 1, description: 'Most capable for ambitious work' },
-      { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', enabled: 1, description: 'Most efficient for everyday tasks' },
-      { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', enabled: 1, description: 'Fastest for quick answers' },
-    ];
-  }, [isSelfHostedMode]);
-  const [currentModelString, setCurrentModelString] = useState(localStorage.getItem('default_model') || 'claude-sonnet-4-6');
-  const handleModelChange = (newModelString: string) => {
-    setCurrentModelString(newModelString);
-  };
-
-  const handleChatSubmit = async () => {
-    if (!message.trim() || !currentProject) return;
-    try {
-      const conv = await createProjectConversation(currentProject.id, message.slice(0, 50), currentModelString);
-      navigate(`/chat/${conv.id}`, { state: { initialMessage: message, model: currentModelString } });
-      setMessage('');
-    } catch (err) {
-      console.error(err);
-    }
-  };
+  // Create project page states
+  const [createInstructionsText, setCreateInstructionsText] = useState('');
+  const [createWorkspacePath, setCreateWorkspacePath] = useState('');
+  const [createEditingInstructions, setCreateEditingInstructions] = useState(false);
 
   const loadProjects = useCallback(async () => {
     try {
@@ -98,24 +49,11 @@ const ProjectsPage = () => {
   useEffect(() => { loadProjects(); }, [loadProjects]);
 
   useEffect(() => {
-    if (!showPlusMenu) { setShowSkillsSubmenu(false); return; }
-    getSkills().then((data: any) => {
-      const all = [...(data.examples || []), ...(data.my_skills || [])];
-      setEnabledSkills(all.filter((s: any) => s.enabled).map((s: any) => ({ id: s.id, name: s.name, description: s.description })));
-    }).catch(() => {});
-  }, [showPlusMenu]);
-
-  useEffect(() => {
-    if (!showPlusMenu) return;
-    const handleClick = (e: MouseEvent) => {
-      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node) &&
-        plusBtnRef.current && !plusBtnRef.current.contains(e.target as Node)) {
-        setShowPlusMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [showPlusMenu]);
+    if (!showDetailMenu) return;
+    const handleClick = () => setShowDetailMenu(false);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [showDetailMenu]);
 
   const loadProject = useCallback(async (id: string) => {
     try {
@@ -128,13 +66,45 @@ const ProjectsPage = () => {
   const handleCreate = async () => {
     const name = projectName.trim() || 'Untitled Project';
     try {
-      const project = await createProject(name, projectDescription.trim());
+      const project = await createProject(name, projectDescription.trim(), createWorkspacePath || undefined);
+      // Save instructions if provided
+      if (createInstructionsText.trim()) {
+        await updateProject(project.id, { instructions: createInstructionsText.trim() });
+      }
       setIsCreating(false);
       setProjectName('');
       setProjectDescription('');
-      loadProject(project.id);
+      setCreateInstructionsText('');
+      setCreateWorkspacePath('');
+
+      // Create conversation and navigate to main chat
+      const defaultModel = localStorage.getItem('default_model') || 'claude-sonnet-4-6';
+      const conv = await createProjectConversation(
+        project.id,
+        name,
+        defaultModel,
+        createWorkspacePath || undefined
+      );
+      navigate(`/chat/${conv.id}`);
       loadProjects();
     } catch (_) { }
+  };
+
+  const handleCreateProjectWithFolder = async () => {
+    try {
+      const selectedPath = await tauriAPI.selectDirectory();
+      if (!selectedPath) return;
+
+      const folderName = selectedPath.split(/[\\/]/).pop() || 'Untitled Project';
+      const project = await createProject(folderName, '', selectedPath);
+      const defaultModel = localStorage.getItem('default_model') || 'claude-sonnet-4-6';
+      const conv = await createProjectConversation(project.id, folderName, defaultModel, selectedPath);
+      navigate(`/chat/${conv.id}`);
+      loadProjects();
+    } catch (err) {
+      console.error('Failed to create project with folder:', err);
+      alert('创建项目失败: ' + (err instanceof Error ? err.message : '未知错误'));
+    }
   };
 
   const handleDelete = async () => {
@@ -143,7 +113,6 @@ const ProjectsPage = () => {
     try {
       await deleteProject(currentProject.id);
       setCurrentProject(null);
-      setShowMenu(false);
       loadProjects();
     } catch (_) { }
   };
@@ -178,19 +147,20 @@ const ProjectsPage = () => {
     if (!currentProject) return;
     await updateProject(currentProject.id, { instructions: instructionsText });
     setEditingInstructions(false);
-    loadProject(currentProject.id);
+    setCurrentProject(null);
+    loadProjects();
   };
 
-  const handleFileUpload = async (files: FileList | File[]) => {
+  const handleSelectFolder = async () => {
     if (!currentProject) return;
-    setUploading(true);
-    for (const file of Array.from(files)) {
-      try {
-        await uploadProjectFile(currentProject.id, file);
-      } catch (_) { }
+    try {
+      const selectedPath = await tauriAPI.selectDirectory();
+      if (!selectedPath) return;
+      await updateProject(currentProject.id, { workspace_path: selectedPath });
+      loadProject(currentProject.id);
+    } catch (err) {
+      console.error('Failed to select folder:', err);
     }
-    setUploading(false);
-    loadProject(currentProject.id);
   };
 
   const handleDeleteFile = async (fileId: string) => {
@@ -202,18 +172,8 @@ const ProjectsPage = () => {
   const handleNewChat = async () => {
     if (!currentProject) return;
     try {
-      const conv = await createProjectConversation(currentProject.id);
+      const conv = await createProjectConversation(currentProject.id, undefined, undefined, currentProject.workspace_path);
       navigate(`/chat/${conv.id}`);
-    } catch (_) { }
-  };
-
-  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentProject) return;
-    try {
-      await deleteConversation(convId);
-      loadProject(currentProject.id);
-      loadProjects();
     } catch (_) { }
   };
 
@@ -275,145 +235,72 @@ const ProjectsPage = () => {
                 <p className="text-[15.5px] text-claude-textSecondary">{currentProject.description}</p>
               )}
             </div>
-            <div className="flex items-center gap-1 text-claude-textSecondary mt-2 flex-shrink-0">
-              <button className="p-1 hover:text-claude-text hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors"><MoreVertical size={18} /></button>
+            <div className="relative flex items-center gap-1 text-claude-textSecondary mt-2 flex-shrink-0">
+              <button
+                onClick={() => setShowDetailMenu(!showDetailMenu)}
+                className="p-1 hover:text-claude-text hover:bg-black/5 dark:hover:bg-white/5 rounded-md transition-colors"
+              >
+                <MoreVertical size={18} />
+              </button>
+              {showDetailMenu && (
+                <div className="absolute right-0 top-full mt-1 z-50 bg-claude-input border border-claude-border rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.08)] py-1.5 w-[200px]">
+                  <button
+                    onClick={() => {
+                      setShowDetailMenu(false);
+                      setEditDetailsName(currentProject.name || '');
+                      setEditDetailsDesc(currentProject.description || '');
+                      setProjectToEdit(currentProject);
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-claude-hover text-left w-full transition-colors group"
+                  >
+                    <Pencil size={16} className="text-claude-textSecondary group-hover:text-claude-text" />
+                    <span className="text-[13px] text-claude-text">{t('sidebar.editDetails') || 'Edit Details'}</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setShowDetailMenu(false);
+                      const selectedPath = await tauriAPI.selectDirectory();
+                      if (selectedPath && currentProject) {
+                        await updateProject(currentProject.id, { workspace_path: selectedPath });
+                        loadProject(currentProject.id);
+                      }
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-claude-hover text-left w-full transition-colors group"
+                  >
+                    <FileText size={16} className="text-claude-textSecondary group-hover:text-claude-text" />
+                    <span className="text-[13px] text-claude-text">{t('customize.changeWorkspace') || 'Change Workspace'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowDetailMenu(false);
+                      setEditingInstructions(true);
+                      setInstructionsText(currentProject.instructions || '');
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-claude-hover text-left w-full transition-colors group"
+                  >
+                    <Plus size={16} className="text-claude-textSecondary group-hover:text-claude-text" />
+                    <span className="text-[13px] text-claude-text">{t('customize.addProjectInstructions') || 'Add Instructions'}</span>
+                  </button>
+                  <div className="h-[1px] bg-claude-border my-1 mx-3" />
+                  <button
+                    onClick={async () => {
+                      setShowDetailMenu(false);
+                      if (!window.confirm(t('customize.confirmDeleteProjectMsg', { name: currentProject.name }) || `Delete "${currentProject.name}"?`)) return;
+                      await deleteProject(currentProject.id);
+                      setCurrentProject(null);
+                      loadProjects();
+                    }}
+                    className="flex items-center gap-3 px-3 py-2 hover:bg-claude-hover text-left w-full transition-colors group"
+                  >
+                    <Trash size={16} className="text-[#B9382C]" />
+                    <span className="text-[13px] text-[#B9382C]">{t('sidebar.delete')}</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="space-y-4">
-            <div
-              className="bg-claude-input border border-claude-border dark:border-[#3a3a38] shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] hover:border-[#CCC] dark:hover:border-[#5a5a58] focus-within:shadow-[0_2px_8px_rgba(0,0,0,0.08)] focus-within:border-[#CCC] dark:focus-within:border-[#5a5a58] transition-all duration-200 flex flex-col max-h-[60vh] font-sans rounded-2xl"
-            >
-              <div className="flex-1 overflow-y-auto min-h-0">
-                <div className="relative">
-                  {message.match(/^\/[a-zA-Z0-9_-]+/) && (
-                    <div className="pl-5 pr-4 pt-5 pb-1 text-[16px] font-sans font-[350]" style={{ minHeight: '48px', position: 'absolute', top: 0, left: 0, right: 0, pointerEvents: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} aria-hidden>
-                      {(() => { const m = message.match(/^(\/[a-zA-Z0-9_-]+)([\s\S]*)$/); return m ? <><span className="text-[#4B9EFA]">{m[1]}</span><span className="text-claude-text">{m[2]}</span></> : null; })()}
-                    </div>
-                  )}
-                  <textarea
-                    ref={textareaRef}
-                    className={`w-full pl-5 pr-4 pt-5 pb-1 placeholder:text-claude-textSecondary text-[16px] outline-none resize-none overflow-hidden bg-transparent font-sans font-[350] ${message.match(/^\/[a-zA-Z0-9_-]+/) ? 'text-transparent caret-claude-text' : 'text-claude-text'}`}
-                    style={{ minHeight: '48px', borderRadius: '16px 16px 0 0' }}
-                    placeholder={selectedSkill ? t('customize.describeSkillAction', { name: selectedSkill.name }) : t('customize.howCanIHelp')}
-                    value={message}
-                    onChange={(e) => {
-                      setMessage(e.target.value);
-                      e.target.style.height = 'auto';
-                      e.target.style.height = Math.min(e.target.scrollHeight, 300) + 'px';
-                      e.target.style.overflowY = e.target.scrollHeight > 300 ? 'auto' : 'hidden';
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Backspace' && selectedSkill) {
-                        const pos = (e.target as HTMLTextAreaElement).selectionStart;
-                        const prefix = `/${selectedSkill.slug} `;
-                        if (pos > 0 && pos <= prefix.length && message.startsWith(prefix.slice(0, pos))) {
-                          e.preventDefault();
-                          setMessage(message.slice(prefix.length));
-                          setSelectedSkill(null);
-                          return;
-                        }
-                      }
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleChatSubmit();
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="px-4 pb-3 pt-1 flex items-center justify-between flex-shrink-0">
-                <div className="relative flex items-center">
-                  <button
-                    ref={plusBtnRef}
-                    onClick={() => setShowPlusMenu(prev => !prev)}
-                    className="p-2 text-claude-textSecondary hover:text-claude-text hover:bg-claude-hover rounded-lg transition-colors"
-                  >
-                    <IconPlus size={20} />
-                  </button>
-                  {showPlusMenu && (
-                    <div ref={plusMenuRef} className="absolute bottom-full left-0 mb-2 w-[220px] bg-claude-input border border-claude-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] py-1.5 z-50">
-                      <button onClick={() => { setShowPlusMenu(false); fileInputRef.current?.click(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-[13px] text-claude-text hover:bg-claude-hover transition-colors">
-                        <Paperclip size={16} className="text-claude-textSecondary" />
-                        {t('customize.addFiles')}
-                      </button>
-                      <div className="relative">
-                        <button onMouseEnter={() => setShowSkillsSubmenu(true)} onClick={() => setShowSkillsSubmenu(p => !p)} className="w-full flex items-center justify-between px-4 py-2.5 text-[13px] text-claude-text hover:bg-claude-hover transition-colors">
-                          <div className="flex items-center gap-3"><FileText size={16} className="text-claude-textSecondary" />{t('customize.skills')}</div>
-                          <ChevronDown size={14} className="text-claude-textSecondary -rotate-90" />
-                        </button>
-                        {showSkillsSubmenu && (
-                          <div className="absolute left-full bottom-0 ml-1 w-[200px] bg-claude-input border border-claude-border rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] py-1.5 z-50 max-h-[300px] overflow-y-auto" onMouseLeave={() => setShowSkillsSubmenu(false)}>
-                            {enabledSkills.length > 0 ? enabledSkills.map(skill => (
-                              <button key={skill.id} onClick={() => {
-                                setShowPlusMenu(false); setShowSkillsSubmenu(false);
-                                const slug = skill.name.toLowerCase().replace(/\s+/g, '-');
-                                setSelectedSkill({ name: skill.name, slug, description: skill.description });
-                                setMessage(prev => prev ? `/${slug} ${prev}` : `/${slug} `);
-                                textareaRef.current?.focus();
-                              }} className="w-full text-left px-4 py-2 text-[13px] text-claude-text hover:bg-claude-hover transition-colors truncate">{skill.name}</button>
-                            )) : <div className="px-4 py-2 text-[12px] text-claude-textSecondary italic">{t('customize.noSkillsEnabled')}</div>}
-                            <div className="border-t border-claude-border mt-1 pt-1">
-                              <button onClick={() => { setShowPlusMenu(false); window.location.hash = '#/customize'; }} className="w-full flex items-center gap-3 px-4 py-2 text-[13px] text-claude-textSecondary hover:bg-claude-hover transition-colors"><FileText size={14} />{t('customize.manageSkills')}</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <ModelSelector
-                    currentModelString={currentModelString}
-                    models={selectorModels}
-                    onModelChange={handleModelChange}
-                    isNewChat={true}
-                  />
-                  <button
-                    onClick={handleChatSubmit}
-                    disabled={!message.trim()}
-                    className="p-2 bg-[#C6613F] text-white rounded-lg hover:bg-[#D97757] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <ArrowUp size={22} strokeWidth={2.5} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {currentProject.conversations && currentProject.conversations.length > 0 ? (
-              <div className="border border-claude-border rounded-[16px] overflow-hidden bg-transparent mt-2">
-                <div className="px-5 py-3 text-[13px] font-medium text-claude-textSecondary border-b border-claude-border">
-                  {currentProject.conversations.length} {currentProject.conversations.length > 1 ? t('sidebar.chats') : t('sidebar.chats')}
-                </div>
-                {currentProject.conversations.map((conv: any) => (
-                  <div
-                    key={conv.id}
-                    onClick={() => navigate(`/chat/${conv.id}`)}
-                    className="px-5 py-3 flex items-center gap-3 hover:bg-claude-hover cursor-pointer border-b border-claude-border last:border-b-0 transition-colors group"
-                  >
-                    <MessageSquare size={16} className="text-claude-textSecondary flex-shrink-0" />
-                    <span className="text-[14px] text-claude-text truncate">{conv.title}</span>
-                    <span className="text-[12px] text-claude-textSecondary ml-auto flex-shrink-0">
-                      {new Date(conv.created_at).toLocaleDateString()}
-                    </span>
-                    <button
-                      onClick={(e) => handleDeleteConversation(conv.id, e)}
-                      className="p-1 text-claude-textSecondary hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                      title={t('common.delete')}
-                    >
-                      <Trash size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="w-full border border-claude-border rounded-[16px] px-6 py-10 flex items-center justify-center bg-transparent mt-2">
-                <span className="text-[14.5px] text-[#A1A1AA]">
-                  {t('customize.startChatDesc')}
-                </span>
-              </div>
-            )}
-
             <div className="w-full border border-claude-border rounded-[16px] overflow-hidden bg-transparent mt-2">
               <div
                 className="p-5 border-b border-claude-border hover:bg-black/[0.015] dark:hover:bg-white/[0.015] transition-colors cursor-pointer group"
@@ -439,7 +326,7 @@ const ProjectsPage = () => {
                 {editingInstructions && (
                   <div
                     className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
-                    onClick={() => { setEditingInstructions(false); setInstructionsText(currentProject.instructions || ''); }}
+                    onClick={() => { setEditingInstructions(false); setCurrentProject(null); loadProjects(); }}
                   >
                     <div
                       className="w-full max-w-[800px] bg-white dark:bg-[#2A2928] border border-claude-border rounded-[20px] shadow-2xl p-7"
@@ -458,7 +345,7 @@ const ProjectsPage = () => {
 
                       <div className="flex justify-end gap-3 mt-5">
                         <button
-                          onClick={() => { setEditingInstructions(false); setInstructionsText(currentProject.instructions || ''); }}
+                          onClick={() => { setEditingInstructions(false); setCurrentProject(null); loadProjects(); }}
                           className="px-4 py-2 text-[14px] font-medium text-claude-text hover:bg-white/5 border border-transparent hover:border-claude-border rounded-xl transition-all"
                         >
                           {t('customize.cancelBtn')}
@@ -481,23 +368,13 @@ const ProjectsPage = () => {
                     {t('customize.files')} {currentProject.files?.length > 0 && <span className="text-claude-textSecondary text-[13px] ml-1">({currentProject.files.length})</span>}
                   </h3>
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={handleSelectFolder}
                     className="text-[#A1A1AA] hover:text-claude-text transition-colors"
+                    title="选择工作区文件夹"
                   >
                     <Plus size={22} strokeWidth={1.5} />
                   </button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={e => { if (e.target.files) handleFileUpload(e.target.files); e.target.value = ''; }}
-                  />
                 </div>
-
-                {uploading && (
-                  <div className="text-[13px] text-claude-textSecondary animate-pulse mb-3">{t('customize.uploading')}</div>
-                )}
 
                 {currentProject.files && currentProject.files.length > 0 ? (
                   <div className="space-y-2">
@@ -522,31 +399,15 @@ const ProjectsPage = () => {
                 ) : (
                   <div
                     className="w-full bg-[#FAFAFA] dark:bg-[#191919] rounded-[16px] flex flex-col items-center justify-center py-8 border border-transparent dark:border-white/[0.04] cursor-pointer hover:bg-[#F3F3F3] dark:hover:bg-[#222222] transition-colors"
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={e => { e.preventDefault(); e.stopPropagation(); }}
-                    onDrop={e => { e.preventDefault(); e.stopPropagation(); if (e.dataTransfer.files.length) handleFileUpload(e.dataTransfer.files); }}
+                    onClick={handleSelectFolder}
                   >
                     <div className="flex items-center justify-center mb-3">
-                      <div className="w-[84px] h-[48px] relative opacity-60 mix-blend-luminosity grayscale">
-                        <div className="absolute right-[4px] bottom-0 w-[28px] h-[36px] bg-[#3B3B3B] border border-[#555] rounded-[4px] flex flex-col items-center py-1.5 px-1 gap-[3px] shadow-sm transform translate-x-2 translate-y-2 -rotate-12 z-0">
-                          <div className="w-full h-[1.5px] bg-[#666] rounded-full mx-1"></div>
-                          <div className="w-3/4 h-[1.5px] bg-[#666] rounded-full mx-1 self-start"></div>
-                        </div>
-                        <div className="absolute left-[4px] bottom-0 w-[28px] h-[36px] bg-[#3B3B3B] border border-[#555] rounded-[4px] flex flex-col items-center py-1.5 px-1 gap-[3px] shadow-sm transform -translate-x-2 translate-y-1 rotate-12 z-0">
-                          <div className="w-full h-[1.5px] bg-[#666] rounded-full mx-1"></div>
-                          <div className="w-full h-[1.5px] bg-[#666] rounded-full mx-1"></div>
-                          <div className="w-1/2 h-[1.5px] bg-[#666] rounded-full mx-1 self-start"></div>
-                        </div>
-                        <div className="absolute left-1/2 bottom-0 -translate-x-1/2 w-[34px] h-[42px] bg-[#444] border border-[#666] rounded-[6px] shadow-md flex flex-col items-center py-2 px-1.5 gap-[4px] z-10">
-                          <div className="w-[12px] h-[12px] bg-[#555] rounded-sm flex items-center justify-center self-end mb-0.5"><Plus size={8} className="text-white" /></div>
-                          <div className="w-full h-[2px] bg-[#888] rounded-full mx-1"></div>
-                          <div className="w-full h-[2px] bg-[#888] rounded-full mx-1"></div>
-                          <div className="w-2/3 h-[2px] bg-[#888] rounded-full mx-1 self-start"></div>
-                        </div>
-                      </div>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#A1A1AA]">
+                        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                      </svg>
                     </div>
                     <span className="text-[13px] text-[#A1A1AA] text-center max-w-[200px] leading-relaxed">
-                      {t('customize.addFilesDesc')}
+                      点击选择工作区文件夹
                     </span>
                   </div>
                 )}
@@ -600,9 +461,138 @@ const ProjectsPage = () => {
             </div>
           </div>
 
+          {/* Instructions Section */}
+          <div className="w-full border border-claude-border rounded-[16px] overflow-hidden bg-transparent mt-6">
+            <div
+              className="p-5 border-b border-claude-border hover:bg-black/[0.015] dark:hover:bg-white/[0.015] transition-colors cursor-pointer group"
+              onClick={() => { if (!createEditingInstructions) setCreateEditingInstructions(true); }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-claude-text mb-0.5" style={{ fontSize: '15.5px' }}>{t('customize.instructions')}</h3>
+                  {!createEditingInstructions && (
+                    <p className="text-[13px] text-[#A1A1AA]">
+                      {createInstructionsText
+                        ? createInstructionsText.slice(0, 200) + (createInstructionsText.length > 200 ? '...' : '')
+                        : t('customize.addInstructions')}
+                    </p>
+                  )}
+                </div>
+                {!createEditingInstructions && (
+                  <button className="text-[#A1A1AA] hover:text-claude-text transition-colors">
+                    {createInstructionsText ? <Pencil size={18} strokeWidth={1.5} /> : <Plus size={22} strokeWidth={1.5} />}
+                  </button>
+                )}
+              </div>
+              {createEditingInstructions && (
+                <div
+                  className="fixed inset-0 z-50 flex items-center justify-center bg-black/70"
+                  onClick={() => { setCreateEditingInstructions(false); }}
+                >
+                  <div
+                    className="w-full max-w-[800px] bg-white dark:bg-[#2A2928] border border-claude-border rounded-[20px] shadow-2xl p-7"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <h2 className="text-[20px] font-bold text-claude-text mb-2">{t('customize.setInstructionsTitle')}</h2>
+                    <p className="text-[14px] text-[#A1A1AA] mb-5">{t('customize.setInstructionsDesc', { name: projectName || t('customize.newProject') })}</p>
+
+                    <textarea
+                      autoFocus
+                      value={createInstructionsText}
+                      onChange={e => setCreateInstructionsText(e.target.value)}
+                      placeholder={t('customize.instructionsPlaceholder')}
+                      className="w-full h-[400px] px-4 py-3 bg-claude-bg dark:bg-[#202020] border border-claude-border rounded-[12px] text-[15px] text-claude-text resize-none outline-none focus:border-[#3A7ADA] focus:ring-1 focus:ring-[#3A7ADA] transition-colors"
+                    />
+
+                    <div className="flex justify-end gap-3 mt-5">
+                      <button
+                        onClick={() => { setCreateEditingInstructions(false); }}
+                        className="px-4 py-2 text-[14px] font-medium text-claude-text hover:bg-white/5 border border-transparent hover:border-claude-border rounded-xl transition-all"
+                      >
+                        {t('customize.cancelBtn')}
+                      </button>
+                      <button
+                        onClick={() => setCreateEditingInstructions(false)}
+                        className="px-4 py-2 text-[14px] font-medium bg-[#E6E6E6] text-[#222] rounded-xl hover:opacity-90 transition-opacity"
+                      >
+                        {t('customize.saveInstructionsBtn')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Workspace Folder Section */}
+          <div className="w-full border border-claude-border rounded-[16px] overflow-hidden bg-transparent mt-4">
+            <div className="p-5 pb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-claude-text" style={{ fontSize: '15.5px' }}>
+                  {t('customize.files')}
+                </h3>
+                {createWorkspacePath ? (
+                  <button
+                    onClick={() => setCreateWorkspacePath('')}
+                    className="text-[#A1A1AA] hover:text-red-500 transition-colors"
+                    title="清除选择"
+                  >
+                    <X size={18} strokeWidth={1.5} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const selectedPath = await tauriAPI.selectDirectory();
+                        if (selectedPath) setCreateWorkspacePath(selectedPath);
+                      } catch (err) {
+                        console.error('Failed to select folder:', err);
+                      }
+                    }}
+                    className="text-[#A1A1AA] hover:text-claude-text transition-colors"
+                    title="选择工作区文件夹"
+                  >
+                    <Plus size={22} strokeWidth={1.5} />
+                  </button>
+                )}
+              </div>
+
+              {createWorkspacePath ? (
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-[12px] bg-black/[0.02] dark:bg-white/[0.03] border border-claude-border">
+                  <FileText size={16} className="text-[#A1A1AA] flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13.5px] text-claude-text truncate font-medium">{createWorkspacePath.split(/[\\/]/).pop()}</div>
+                    <div className="text-[11.5px] text-[#A1A1AA] truncate">{createWorkspacePath}</div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="w-full bg-[#FAFAFA] dark:bg-[#191919] rounded-[16px] flex flex-col items-center justify-center py-8 border border-transparent dark:border-white/[0.04] cursor-pointer hover:bg-[#F3F3F3] dark:hover:bg-[#222222] transition-colors"
+                  onClick={async () => {
+                    try {
+                      const selectedPath = await tauriAPI.selectDirectory();
+                      if (selectedPath) setCreateWorkspacePath(selectedPath);
+                    } catch (err) {
+                      console.error('Failed to select folder:', err);
+                    }
+                  }}
+                >
+                  <div className="flex items-center justify-center mb-3">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#A1A1AA]">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-[13px] text-[#A1A1AA] text-center max-w-[200px] leading-relaxed">
+                    点击选择工作区文件夹
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-3 mt-6">
             <button
-              onClick={() => { setIsCreating(false); setProjectName(''); setProjectDescription(''); }}
+              onClick={() => { setIsCreating(false); setProjectName(''); setProjectDescription(''); setCreateInstructionsText(''); setCreateWorkspacePath(''); }}
               className="px-5 py-2.5 text-[15px] font-medium text-claude-text bg-white dark:bg-claude-bg border border-gray-300 dark:border-claude-border hover:bg-gray-50 dark:hover:bg-claude-hover rounded-xl transition-colors"
             >
               {t('common.cancel')}
@@ -625,14 +615,16 @@ const ProjectsPage = () => {
       <div className="max-w-[800px] mx-auto px-8 py-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="font-[Spectral] text-[32px] text-claude-text" style={{ fontWeight: 500 }}>{t('projects.title')}</h1>
-          <button
-            onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 px-3.5 py-1.5 bg-claude-text text-claude-bg hover:opacity-90 rounded-lg transition-opacity font-medium"
-            style={{ fontSize: '14px' }}
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            {t('customize.newProject')}
-          </button>
+          {projects.length > 0 && (
+            <button
+              onClick={() => setIsCreating(true)}
+              className="flex items-center gap-2 px-3.5 py-1.5 bg-claude-text text-claude-bg hover:opacity-90 rounded-lg transition-opacity font-medium"
+              style={{ fontSize: '14px' }}
+            >
+              <Plus size={16} strokeWidth={2.5} />
+              {t('customize.newProject')}
+            </button>
+          )}
         </div>
 
         {projects.length > 0 && (
@@ -696,7 +688,22 @@ const ProjectsPage = () => {
             {filteredProjects.map(p => (
               <div
                 key={p.id}
-                onClick={() => loadProject(p.id)}
+                onClick={async () => {
+                  try {
+                    // 先获取项目已有会话，如果有则跳转，没有才创建
+                    const response = await getProjectConversations(p.id);
+                    const existingConvs = response?.conversations || [];
+                    if (Array.isArray(existingConvs) && existingConvs.length > 0) {
+                      navigate(`/chat/${existingConvs[0].id}`);
+                    } else {
+                      const defaultModel = localStorage.getItem('default_model') || 'claude-sonnet-4-6';
+                      const conv = await createProjectConversation(p.id, p.name, defaultModel, p.workspace_path);
+                      navigate(`/chat/${conv.id}`);
+                    }
+                  } catch (err) {
+                    console.error('Failed to navigate to project conversation:', err);
+                  }
+                }}
                 className="flex flex-col p-5 border border-claude-border rounded-[12px] bg-transparent hover:bg-black/[0.02] dark:hover:bg-white/[0.02] cursor-pointer transition-colors group min-h-[170px]"
               >
                 <div className="flex items-center justify-between mb-2.5 relative">
@@ -723,6 +730,27 @@ const ProjectsPage = () => {
                             <Pencil size={16} className="text-claude-textSecondary" />
                             {t('customize.editDetails')}
                           </button>
+                          <button className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={async (e) => {
+                            e.stopPropagation(); setActiveMenu(null);
+                            const selectedPath = await tauriAPI.selectDirectory();
+                            if (selectedPath) {
+                              await updateProject(p.id, { workspace_path: selectedPath });
+                              loadProjects();
+                            }
+                          }}>
+                            <FileText size={16} className="text-claude-textSecondary" />
+                            {t('customize.changeWorkspace') || 'Change Workspace'}
+                          </button>
+                          <button className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={async (e) => {
+                            e.stopPropagation(); setActiveMenu(null);
+                            const proj = await getProject(p.id);
+                            setCurrentProject(proj);
+                            setEditingInstructions(true);
+                            setInstructionsText(proj.instructions || '');
+                          }}>
+                            <Plus size={16} className="text-claude-textSecondary" />
+                            {t('customize.addProjectInstructions') || 'Add Instructions'}
+                          </button>
                           <div className="my-1.5 border-t border-claude-border opacity-50" />
                           <button className="w-full flex items-center gap-3 px-4 py-2.5 text-[14px] text-claude-text hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left" onClick={(e) => { e.stopPropagation(); setActiveMenu(null); }}>
                             <Archive size={16} className="text-claude-textSecondary" />
@@ -741,6 +769,12 @@ const ProjectsPage = () => {
                 <p className="text-[14px] text-claude-textSecondary line-clamp-3 leading-relaxed flex-1">
                   {p.description || t('customize.noDescriptionProvided')}
                 </p>
+
+                {p.workspace_path && (
+                  <div className="text-[12px] text-claude-textSecondary/60 truncate mt-1">
+                    {p.workspace_path}
+                  </div>
+                )}
 
                 <div className="mt-4 pt-1 flex items-center gap-4 text-[12px] text-claude-textSecondary/80">
                   <span>{t('customize.updated')} {new Date(p.updated_at).toLocaleDateString()}</span>

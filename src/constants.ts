@@ -17,10 +17,10 @@ export const RECENT_CHATS = [
 ];
 
 export const NAV_ITEMS = [
-  { label: "Chats", icon: "message-square" },
-  { label: "Projects", icon: "folder" },
-  { label: "Artifacts", icon: "sparkles" },
-  { label: "Models", icon: "cpu" },
-  { label: "Design", icon: "palette" },
-  { label: "Directory", icon: "grid" },
+  { id: "chats", label: "sidebar.chats", icon: "message-square" },
+  { id: "projects", label: "sidebar.projects", icon: "folder" },
+  { id: "artifacts", label: "sidebar.artifacts", icon: "sparkles" },
+  { id: "models", label: "sidebar.models", icon: "cpu" },
+  { id: "design", label: "sidebar.design", icon: "palette" },
+  { id: "directory", label: "sidebar.directory", icon: "grid" },
 ];

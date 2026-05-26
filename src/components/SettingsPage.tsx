@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Smartphone, MonitorIcon, LogOut, MoreHorizontal, Check, X, Server, Globe } from 'lucide-react';
+import { ChevronRight, Smartphone, MonitorIcon, LogOut, MoreHorizontal, Check, X, Server, Globe, Brain } from 'lucide-react';
 import { getUserProfile, updateUserProfile, getUserUsage, getGatewayUsage, getSessions, deleteSession, logoutOtherSessions, changePassword, deleteAccount, logout, getProviderModels } from '../api';
 import ProviderSettings from './ProviderSettings';
 import McpSettingsPage from './McpSettingsPage';
+import MemoryPanel from './MemoryPanel';
 import { useI18n } from '../hooks/useI18n';
 
 interface SettingsPageProps {
@@ -15,7 +16,7 @@ const WORK_OPTIONS = [
   '法律', '医疗健康', '其他',
 ];
 
-type Tab = 'general' | 'account' | 'usage' | 'models' | 'mcp';
+type Tab = 'general' | 'account' | 'usage' | 'models' | 'mcp' | 'memory';
 
 const SettingsPage = ({ onClose }: SettingsPageProps) => {
   const { t } = useI18n();
@@ -50,8 +51,19 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
   const [sendKey, setSendKey] = useState(localStorage.getItem('sendKey') || 'enter'); // enter or ctrl+enter
   const [newlineKey, setNewlineKey] = useState(localStorage.getItem('newlineKey') || (localStorage.getItem('sendKey') === 'enter' ? 'shift_enter' : 'enter'));
   const [language, setLanguage] = useState(localStorage.getItem('language') || 'zh');
+  const [autoCompactEnabled, setAutoCompactEnabled] = useState(() => { try { return localStorage.getItem('auto_compact_enabled') !== 'false'; } catch { return true; } });
+  const [autoCompactThreshold, setAutoCompactThreshold] = useState(() => { try { return parseInt(localStorage.getItem('auto_compact_threshold') || '80'); } catch { return 80; } });
 
   const isSelfHosted = localStorage.getItem('user_mode') === 'selfhosted';
+
+  // Persist autoCompact settings
+  useEffect(() => {
+    localStorage.setItem('auto_compact_enabled', String(autoCompactEnabled));
+  }, [autoCompactEnabled]);
+  
+  useEffect(() => {
+    localStorage.setItem('auto_compact_threshold', String(autoCompactThreshold));
+  }, [autoCompactThreshold]);
 
   useEffect(() => {
     // Load profile: self-hosted uses localStorage, Clawparrot uses backend
@@ -257,6 +269,14 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           <Server size={16} />
           {t('settings.mcpServers')}
         </button>
+        <button
+          onClick={() => setTab('memory')}
+          className={`text-left px-3 py-2 rounded-lg text-[15px] font-medium transition-colors flex items-center gap-2 ${tab === 'memory' ? 'bg-claude-btn-hover text-claude-text' : 'text-claude-textSecondary hover:bg-claude-hover'
+            }`}
+        >
+          <Brain size={16} />
+          Memory
+        </button>
       </div>
 
       {/* Right Content Area */}
@@ -267,6 +287,7 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
           {tab === 'account' && renderAccount()}
           {tab === 'usage' && renderUsage()}
           {tab === 'mcp' && <McpSettingsPage />}
+          {tab === 'memory' && <MemoryPanel />}
         </div>
       </div>
     </div>
@@ -866,6 +887,55 @@ const SettingsPage = ({ onClose }: SettingsPageProps) => {
                 </button>
               );
             })}
+          </div>
+        </section>
+
+        <hr className="border-claude-border" />
+        <hr className="border-claude-border" />
+
+        {/* Context Management Section */}
+        <section>
+          <h3 className="text-[16px] font-semibold text-claude-text mb-5">上下文管理</h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-[13px] font-medium text-claude-textSecondary">自动压缩</div>
+                <div className="text-[12px] text-claude-textSecondary mt-0.5">当上下文使用率超过阈值时自动压缩对话</div>
+              </div>
+              <button
+                onClick={() => {
+                  const newVal = !autoCompactEnabled;
+                  setAutoCompactEnabled(newVal);
+                }}
+                className={`w-10 h-6 rounded-full relative transition-colors duration-200 ${autoCompactEnabled ? 'bg-blue-600' : 'bg-[#E5E5E5]'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${autoCompactEnabled ? 'left-5' : 'left-1'}`} />
+              </button>
+            </div>
+            
+            {autoCompactEnabled && (
+              <div>
+                <label className="block text-[13px] font-medium text-claude-textSecondary mb-1.5">
+                  压缩阈值: {autoCompactThreshold}%
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={50}
+                    max={95}
+                    step={5}
+                    value={autoCompactThreshold}
+                    onChange={(e) => setAutoCompactThreshold(parseInt(e.target.value))}
+                    className="flex-1 h-2 bg-claude-border rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="w-12 text-right text-[14px] font-mono text-claude-text">{autoCompactThreshold}%</span>
+                </div>
+                <div className="flex justify-between text-[11px] text-claude-textSecondary mt-1">
+                  <span>50%</span>
+                  <span>95%</span>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

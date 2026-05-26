@@ -217,7 +217,8 @@ pub async fn chat_send(
         workspace_path: None,
         temperature: None,
         top_p: None,
-    };
+            web_search_enabled: None,
+        };
 
     let mut rx = engine.send_message(chat_request).await.map_err(|e| e.to_string())?;
 
@@ -259,7 +260,8 @@ pub async fn chat_stream(
         workspace_path: None,
         temperature: None,
         top_p: None,
-    };
+            web_search_enabled: None,
+        };
 
     let mut rx = engine.send_message(chat_request).await.map_err(|e| e.to_string())?;
 
@@ -480,7 +482,7 @@ pub async fn native_engine_init(app: AppHandle) -> Result<NativeEngineState, Str
         workspaces_dir,
         permission_manager,
     );
-    
+
     if let Some(mcp_manager) = mcp_guard.as_ref() {
         let registry = Arc::new(McpToolRegistry::new(mcp_manager.clone()));
         engine = engine.with_mcp_registry(registry);
@@ -538,7 +540,8 @@ pub async fn native_chat(
         workspace_path: None,
         temperature: None,
         top_p: None,
-    };
+            web_search_enabled: None,
+        };
     
     let mut rx = engine.send_message(chat_request).await.map_err(|e| e.to_string())?;
     
@@ -818,6 +821,7 @@ pub async fn native_update_provider(
                 name: m.name,
                 enabled: m.enabled,
                 max_tokens: None,
+                context_window: None,
                 supports_vision: false,
                 supports_web_search: false,
             }

@@ -1,0 +1,9 @@
+- [x] 后端 ProjectUpdateRequest 包含 workspace_path 字段，PATCH 接口可更新工作区路径
+- [x] 前端 updateProject 类型签名包含 workspace_path
+- [x] 侧边栏使用 api.ts 中的完整 Project 接口
+- [x] 侧边栏项目卡片 hover 时显示编辑图标
+- [x] 点击编辑图标弹出 Popover，包含名称、描述、工作区路径编辑区域
+- [x] 工作区路径可通过 Tauri 文件夹选择器选取
+- [x] 保存后项目列表即时刷新，修改生效
+- [x] 取消或点击外部关闭 Popover，不做修改
+- [x] Popover 样式与现有 UI 风格一致

@@ -1,7 +1,8 @@
-pub mod schema;
+﻿pub mod schema;
 pub mod conversation_repo;
 pub mod message_repo;
 pub mod project_repo;
+pub mod memory_repo;
 pub mod migration;
 
 use anyhow::Result;
@@ -37,3 +38,4 @@ impl DbManager {
         Ok(f(&guard))
     }
 }
+

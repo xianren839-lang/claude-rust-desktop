@@ -143,7 +143,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40" onClick={onClose}>
       <div className="bg-claude-bg border border-claude-border rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-claude-border">
-          <h2 className="text-lg font-semibold text-claude-text">Agent Worktree & IDE</h2>
+          <h2 className="text-lg font-semibold text-claude-text">智能体工作树 & IDE</h2>
           <button onClick={onClose} className="p-1.5 hover:bg-claude-hover rounded-lg transition-colors text-claude-textSecondary hover:text-claude-text">
             <X size={18} />
           </button>
@@ -156,7 +156,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
               onClick={() => setTab(t)}
               className={`flex-1 px-4 py-2.5 text-[14px] font-medium transition-colors ${tab === t ? 'text-claude-text border-b-2 border-[#C6613F]' : 'text-claude-textSecondary hover:text-claude-text'}`}
             >
-              {t === 'worktrees' ? 'Worktrees' : t === 'agents' ? 'Agents' : 'IDE'}
+              {t === 'worktrees' ? '工作树' : t === 'agents' ? '智能体' : 'IDE'}
             </button>
           ))}
         </div>
@@ -165,16 +165,16 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
           {tab === 'worktrees' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] text-claude-textSecondary">{worktrees.length} worktree(s)</span>
+                <span className="text-[13px] text-claude-textSecondary">{worktrees.length} 个工作树</span>
                 <div className="flex gap-2">
-                  <button onClick={refresh} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors" title="Sync">
+                  <button onClick={refresh} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors" title="同步">
                     <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                   </button>
-                  <button onClick={() => syncWorktrees()} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors" title="Sync from git">
+                  <button onClick={() => syncWorktrees()} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors" title="从 Git 同步">
                     <GitBranch size={16} />
                   </button>
                   <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C6613F] text-white text-[13px] font-medium rounded-lg hover:bg-[#D97757] transition-colors">
-                    <Plus size={14} /> New
+                    <Plus size={14} /> 新建
                   </button>
                 </div>
               </div>
@@ -184,31 +184,31 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                   <input
                     value={newAgentName}
                     onChange={e => setNewAgentName(e.target.value)}
-                    placeholder="Agent name"
+                    placeholder="智能体名称"
                     className="w-full px-3 py-2 bg-white dark:bg-[#2B2A29] border border-claude-border rounded-lg text-[14px] text-claude-text placeholder:text-claude-textSecondary focus:outline-none focus:border-[#C6613F]"
                   />
                   <input
                     value={newAgentTask}
                     onChange={e => setNewAgentTask(e.target.value)}
-                    placeholder="Task description"
+                    placeholder="任务描述"
                     className="w-full px-3 py-2 bg-white dark:bg-[#2B2A29] border border-claude-border rounded-lg text-[14px] text-claude-text placeholder:text-claude-textSecondary focus:outline-none focus:border-[#C6613F]"
                   />
                   <input
                     value={newAgentBranch}
                     onChange={e => setNewAgentBranch(e.target.value)}
-                    placeholder="Branch prefix (optional, default: agent)"
+                    placeholder="分支前缀（可选，默认: agent）"
                     className="w-full px-3 py-2 bg-white dark:bg-[#2B2A29] border border-claude-border rounded-lg text-[14px] text-claude-text placeholder:text-claude-textSecondary focus:outline-none focus:border-[#C6613F]"
                   />
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-[13px] text-claude-textSecondary hover:text-claude-text transition-colors">Cancel</button>
-                    <button onClick={handleCreateWorktree} disabled={!newAgentName.trim()} className="px-3 py-1.5 text-[13px] font-medium bg-[#C6613F] text-white rounded-lg hover:bg-[#D97757] transition-colors disabled:opacity-40">Create</button>
+                    <button onClick={() => setShowCreate(false)} className="px-3 py-1.5 text-[13px] text-claude-textSecondary hover:text-claude-text transition-colors">取消</button>
+                    <button onClick={handleCreateWorktree} disabled={!newAgentName.trim()} className="px-3 py-1.5 text-[13px] font-medium bg-[#C6613F] text-white rounded-lg hover:bg-[#D97757] transition-colors disabled:opacity-40">创建</button>
                   </div>
                 </div>
               )}
 
               {worktrees.length === 0 ? (
                 <div className="text-center py-8 text-claude-textSecondary text-[14px]">
-                  No worktrees. Create one to start a parallel agent.
+                  暂无工作树。创建一个工作树来启动并行智能体。
                 </div>
               ) : worktrees.map(wt => (
                 <div key={wt.id} className="p-4 bg-claude-input border border-claude-border rounded-xl">
@@ -223,11 +223,11 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                   <div className="flex gap-2">
                     {wt.status === 'Active' && (
                       <button onClick={() => handleMerge(wt.id)} className="flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
-                        <Merge size={12} /> Merge
+                        <Merge size={12} /> 合并
                       </button>
                     )}
                     <button onClick={() => handleRemove(wt.id)} className="flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                      <Trash2 size={12} /> Remove
+                      <Trash2 size={12} /> 删除
                     </button>
                   </div>
                 </div>
@@ -238,7 +238,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
           {tab === 'agents' && (
             <div className="space-y-3">
               <div className="flex items-center justify-between mb-4">
-                <span className="text-[13px] text-claude-textSecondary">{agents.length} agent(s)</span>
+                <span className="text-[13px] text-claude-textSecondary">{agents.length} 个智能体</span>
                 <button onClick={refresh} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors">
                   <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
                 </button>
@@ -246,7 +246,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
 
               {agents.length === 0 ? (
                 <div className="text-center py-8 text-claude-textSecondary text-[14px]">
-                  No agents. Create a worktree with an agent to get started.
+                  暂无智能体。创建一个带智能体的工作树开始使用。
                 </div>
               ) : agents.map(ag => (
                 <div key={ag.id} className="p-4 bg-claude-input border border-claude-border rounded-xl">
@@ -258,7 +258,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                     </div>
                     <span className="text-[12px] text-claude-textSecondary">{ag.id}</span>
                   </div>
-                  <div className="text-[13px] text-claude-textSecondary mb-2">{ag.task || 'No task description'}</div>
+                  <div className="text-[13px] text-claude-textSecondary mb-2">{ag.task || '无任务描述'}</div>
                   {ag.result && (
                     <div className="text-[12px] text-claude-text bg-white dark:bg-[#2B2A29] border border-claude-border rounded-lg p-2 mb-2 max-h-24 overflow-y-auto">
                       {ag.result}
@@ -267,7 +267,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                   <div className="flex items-center gap-2">
                     {(ag.status === 'Running' || ag.status === 'Starting') && (
                       <button onClick={() => handleCancelAgent(ag.id)} className="flex items-center gap-1 px-2.5 py-1 text-[12px] font-medium text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                        <XCircle size={12} /> Cancel
+                        <XCircle size={12} /> 取消
                       </button>
                     )}
                     {ag.status === 'Running' && <Loader2 size={14} className="animate-spin text-green-500" />}
@@ -285,7 +285,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Monitor size={18} className="text-claude-textSecondary" />
-                    <span className="text-[14px] font-medium text-claude-text">IDE Bridge Server</span>
+                    <span className="text-[14px] font-medium text-claude-text">IDE 桥接服务器</span>
                   </div>
                   <button
                     onClick={handleIdeToggle}
@@ -295,22 +295,22 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                         : 'bg-green-50 dark:bg-green-900/20 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30'
                     }`}
                   >
-                    {ideStatus?.server_running ? <><WifiOff size={14} /> Stop</> : <><Wifi size={14} /> Start</>}
+                    {ideStatus?.server_running ? <><WifiOff size={14} /> 停止</> : <><Wifi size={14} /> 启动</>}
                   </button>
                 </div>
                 {ideStatus && (
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 bg-white dark:bg-[#2B2A29] rounded-lg">
                       <div className="text-[18px] font-semibold text-claude-text">{ideStatus.port || '-'}</div>
-                      <div className="text-[11px] text-claude-textSecondary">Port</div>
+                      <div className="text-[11px] text-claude-textSecondary">端口</div>
                     </div>
                     <div className="p-2 bg-white dark:bg-[#2B2A29] rounded-lg">
                       <div className="text-[18px] font-semibold text-claude-text">{ideStatus.active_connections}</div>
-                      <div className="text-[11px] text-claude-textSecondary">Active</div>
+                      <div className="text-[11px] text-claude-textSecondary">活跃</div>
                     </div>
                     <div className="p-2 bg-white dark:bg-[#2B2A29] rounded-lg">
                       <div className="text-[18px] font-semibold text-claude-text">{ideStatus.total_connections}</div>
-                      <div className="text-[11px] text-claude-textSecondary">Total</div>
+                      <div className="text-[11px] text-claude-textSecondary">总计</div>
                     </div>
                   </div>
                 )}
@@ -318,7 +318,7 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[13px] text-claude-textSecondary">Connections</span>
+                  <span className="text-[13px] text-claude-textSecondary">连接</span>
                   <button onClick={refresh} className="p-1.5 hover:bg-claude-hover rounded-lg text-claude-textSecondary hover:text-claude-text transition-colors">
                     <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
                   </button>
@@ -327,8 +327,8 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
                 {ideConnections.length === 0 ? (
                   <div className="text-center py-6 text-claude-textSecondary text-[14px]">
                     {ideStatus?.server_running
-                      ? 'Waiting for IDE connections... Install the VS Code extension to connect.'
-                      : 'Start the IDE Bridge server to accept connections.'}
+                      ? '等待 IDE 连接... 安装 VS Code 扩展以进行连接。'
+                      : '启动 IDE 桥接服务器以接受连接。'}
                   </div>
                 ) : ideConnections.map(conn => (
                   <div key={conn.id} className="p-3 bg-claude-input border border-claude-border rounded-xl mb-2">
@@ -351,9 +351,9 @@ export default function AgentPanel({ onClose }: { onClose: () => void }) {
 
               {ideStatus?.server_running && (
                 <div className="p-3 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-900/30 rounded-xl">
-                  <div className="text-[13px] font-medium text-blue-700 dark:text-blue-400 mb-1">VS Code Extension Setup</div>
+                  <div className="text-[13px] font-medium text-blue-700 dark:text-blue-400 mb-1">VS Code 扩展设置</div>
                   <div className="text-[12px] text-blue-600 dark:text-blue-300">
-                    Install the Claude Tauri Bridge extension and configure it to connect to <code className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">127.0.0.1:{ideStatus.port}</code>
+                    安装 Claude Tauri Bridge 扩展并配置为连接到 <code className="bg-blue-100 dark:bg-blue-900/30 px-1 rounded">127.0.0.1:{ideStatus.port}</code>
                   </div>
                 </div>
               )}

@@ -13,6 +13,7 @@ pub struct Project {
     pub name: String,
     pub description: Option<String>,
     pub instructions: Option<String>,
+    pub workspace_path: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub is_archived: bool,
@@ -36,6 +37,7 @@ pub struct ProjectMetadata {
     pub name: String,
     pub description: Option<String>,
     pub instructions: Option<String>,
+    pub workspace_path: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     pub is_archived: bool,
@@ -64,7 +66,7 @@ impl ProjectManager {
         &self.projects_dir
     }
 
-    pub async fn create_project(&self, name: &str, description: Option<&str>) -> Result<Project> {
+    pub async fn create_project(&self, name: &str, description: Option<&str>, workspace_path: Option<&str>) -> Result<Project> {
         let id = Uuid::new_v4().to_string();
         let project_dir = self.projects_dir.join(&id);
         fs::create_dir_all(&project_dir)?;
@@ -75,8 +77,9 @@ impl ProjectManager {
             name: name.to_string(),
             description: description.map(String::from),
             instructions: None,
+            workspace_path: workspace_path.map(String::from),
             created_at: now.clone(),
-            updated_at: now,
+            updated_at: now.clone(),
             is_archived: false,
             file_count: 0,
         };
@@ -86,6 +89,7 @@ impl ProjectManager {
             name: name.to_string(),
             description: description.map(String::from),
             instructions: None,
+            workspace_path: workspace_path.map(String::from),
             created_at: project.created_at.clone(),
             updated_at: project.updated_at.clone(),
             is_archived: false,
@@ -109,6 +113,7 @@ impl ProjectManager {
             name: metadata.name.clone(),
             description: metadata.description.clone(),
             instructions: metadata.instructions.clone(),
+            workspace_path: metadata.workspace_path.clone(),
             created_at: metadata.created_at.clone(),
             updated_at: metadata.updated_at.clone(),
             is_archived: metadata.is_archived,
@@ -125,6 +130,7 @@ impl ProjectManager {
                 name: m.name.clone(),
                 description: m.description.clone(),
                 instructions: m.instructions.clone(),
+                workspace_path: m.workspace_path.clone(),
                 created_at: m.created_at.clone(),
                 updated_at: m.updated_at.clone(),
                 is_archived: m.is_archived,
@@ -139,6 +145,7 @@ impl ProjectManager {
         name: Option<&str>,
         description: Option<&str>,
         instructions: Option<&str>,
+        workspace_path: Option<&str>,
         is_archived: Option<bool>,
     ) -> Result<Project> {
         let mut projects_map = self.projects.lock().await;
@@ -155,6 +162,9 @@ impl ProjectManager {
         if let Some(i) = instructions {
             metadata.instructions = Some(i.to_string());
         }
+        if let Some(w) = workspace_path {
+            metadata.workspace_path = Some(w.to_string());
+        }
         if let Some(a) = is_archived {
             metadata.is_archived = a;
         }
@@ -165,6 +175,7 @@ impl ProjectManager {
             name: metadata.name.clone(),
             description: metadata.description.clone(),
             instructions: metadata.instructions.clone(),
+            workspace_path: metadata.workspace_path.clone(),
             created_at: metadata.created_at.clone(),
             updated_at: metadata.updated_at.clone(),
             is_archived: metadata.is_archived,

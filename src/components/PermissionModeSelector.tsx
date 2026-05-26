@@ -7,54 +7,48 @@ type PermissionMode = 'ask_permissions' | 'accept_edits' | 'plan_mode' | 'bypass
 
 interface PermissionModeOption {
   value: PermissionMode;
-  label: string;
-  labelZh: string;
-  description: string;
-  descriptionZh: string;
   icon: React.ReactNode;
 }
 
 const MODE_OPTIONS: PermissionModeOption[] = [
   {
     value: 'ask_permissions',
-    label: 'Ask permissions',
-    labelZh: '询问权限',
-    description: 'All tool calls require user confirmation',
-    descriptionZh: '所有工具调用都需要用户确认',
     icon: <Shield size={14} />,
   },
   {
     value: 'accept_edits',
-    label: 'Accept edits',
-    labelZh: '接受编辑',
-    description: 'Auto-accept edit operations, confirm dangerous actions',
-    descriptionZh: '自动接受编辑操作，危险操作需要确认',
     icon: <ShieldCheck size={14} />,
   },
   {
     value: 'plan_mode',
-    label: 'Plan mode',
-    labelZh: '计划模式',
-    description: 'Read-only mode, all modifications are denied',
-    descriptionZh: '只读模式，禁止所有修改操作',
     icon: <Eye size={14} />,
   },
   {
     value: 'bypass_permissions',
-    label: 'Bypass permissions',
-    labelZh: '全托管模式',
-    description: 'All operations auto-approved, no confirmation needed',
-    descriptionZh: '所有操作自动通过，无需任何确认',
     icon: <ShieldOff size={14} />,
   },
 ];
+
+const MODE_LABEL_KEYS: Record<PermissionMode, string> = {
+  ask_permissions: 'customize.askPermissions',
+  accept_edits: 'customize.acceptEdits',
+  plan_mode: 'customize.planMode',
+  bypass_permissions: 'customize.bypassPermissions',
+};
+
+const MODE_DESC_KEYS: Record<PermissionMode, string> = {
+  ask_permissions: 'customize.askPermissionsDesc',
+  accept_edits: 'customize.acceptEditsDesc',
+  plan_mode: 'customize.planModeDesc',
+  bypass_permissions: 'customize.bypassPermissionsDesc',
+};
 
 interface PermissionModeSelectorProps {
   className?: string;
 }
 
 export default function PermissionModeSelector({ className = '' }: PermissionModeSelectorProps) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const permissionMode = useChatStore((s) => s.permissionMode);
   const setPermissionMode = useChatStore((s) => s.setPermissionMode);
   const [isOpen, setIsOpen] = useState(false);
@@ -64,7 +58,6 @@ export default function PermissionModeSelector({ className = '' }: PermissionMod
   const [dropdownPosition, setDropdownPosition] = useState<'bottom' | 'top'>('bottom');
 
   const currentMode = MODE_OPTIONS.find((m) => m.value === permissionMode) || MODE_OPTIONS[1];
-  const isZh = permissionMode === 'zh';
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -130,7 +123,7 @@ export default function PermissionModeSelector({ className = '' }: PermissionMod
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium bg-claude-input border border-claude-border hover:bg-claude-hover transition-colors"
         >
           {currentMode.icon}
-          <span className={getModeBadgeColor(permissionMode)}>{currentMode.label}</span>
+          <span className={getModeBadgeColor(permissionMode)}>{t(MODE_LABEL_KEYS[permissionMode])}</span>
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className={`text-claude-textSecondary transition-transform ${isOpen ? 'rotate-180' : ''}`}>
             <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -145,7 +138,7 @@ export default function PermissionModeSelector({ className = '' }: PermissionMod
           >
             <div className="px-3 py-2 border-b border-claude-border">
               <span className="text-[11px] font-medium text-claude-textSecondary uppercase tracking-wide">
-                Permission Mode
+                {t('customize.permissionMode')}
               </span>
             </div>
             <div className="p-1.5">
@@ -164,10 +157,10 @@ export default function PermissionModeSelector({ className = '' }: PermissionMod
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className={`text-[13px] font-medium ${permissionMode === option.value ? 'text-claude-text' : 'text-claude-textSecondary'}`}>
-                      {option.label}
+                      {t(MODE_LABEL_KEYS[option.value])}
                     </div>
                     <div className="text-[11px] text-claude-textSecondary/70 mt-0.5 leading-tight">
-                      {option.description}
+                      {t(MODE_DESC_KEYS[option.value])}
                     </div>
                   </div>
                   {permissionMode === option.value && (
@@ -196,33 +189,35 @@ export default function PermissionModeSelector({ className = '' }: PermissionMod
               </div>
               <div>
                 <h3 className="text-[16px] font-semibold text-claude-text">
-                  启用全托管模式？
+                  {t('customize.enableBypassTitle')}
                 </h3>
                 <p className="text-[13px] text-claude-textSecondary mt-0.5">
-                  Enable Bypass Permissions mode?
+                  {t('customize.enableBypassSubtitle')}
                 </p>
               </div>
             </div>
             <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 mb-5">
               <p className="text-[13px] text-orange-400 leading-relaxed">
-                在此模式下，所有工具调用（包括文件写入、命令执行等）都将自动执行，无需您的确认。请确保您信任当前对话中的 AI 行为。
+                {t('customize.bypassWarning')}
               </p>
-              <p className="text-[12px] text-orange-400/70 mt-2">
-                In this mode, all tool calls (including file writes, command execution, etc.) will be executed automatically without your confirmation.
-              </p>
+              {language !== 'zh' && (
+                <p className="text-[12px] text-orange-400/70 mt-2">
+                  {t('customize.bypassWarningEn')}
+                </p>
+              )}
             </div>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowBypassWarning(false)}
                 className="px-4 py-2 text-[13px] font-medium text-claude-text bg-claude-btn-hover hover:bg-claude-hover rounded-lg transition-colors"
               >
-                取消
+                {t('customize.cancel')}
               </button>
               <button
                 onClick={confirmBypass}
                 className="px-4 py-2 text-[13px] font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg transition-colors"
               >
-                确认启用
+                {t('customize.confirmEnable')}
               </button>
             </div>
           </div>

@@ -355,3 +355,30 @@ pub fn check_and_migrate(data_dir: &Path, conn: &Connection) -> Result<()> {
 
     Ok(())
 }
+
+/// V2 memory schema migration: add memory_type, importance, FTS5
+pub fn migrate_memory_v2(conn: &Connection) -> Result<()> {
+    let _ = conn.execute_batch("ALTER TABLE memories ADD COLUMN memory_type TEXT NOT NULL DEFAULT 'context'");
+    let _ = conn.execute_batch("ALTER TABLE memories ADD COLUMN importance INTEGER NOT NULL DEFAULT 3");
+    let _ = conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(memory_type)");
+    let _ = conn.execute_batch("CREATE INDEX IF NOT EXISTS idx_memories_importance ON memories(importance)");
+    let _ = conn.execute_batch("CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(summary, tags, memory_type, content=memories, content_rowid=rowid)");
+    let _ = conn.execute_batch("CREATE TRIGGER IF NOT EXISTS memories_ai AFTER INSERT ON memories BEGIN INSERT INTO memories_fts(rowid, summary, tags, memory_type) VALUES (new.rowid, new.summary, new.tags, new.memory_type); END;");
+    let _ = conn.execute_batch("CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN INSERT INTO memories_fts(memories_fts, rowid, summary, tags, memory_type) VALUES ('delete', old.rowid, old.summary, old.tags, old.memory_type); END;");
+    let _ = conn.execute_batch("CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN INSERT INTO memories_fts(memories_fts, rowid, summary, tags, memory_type) VALUES ('delete', old.rowid, old.summary, old.tags, old.memory_type); INSERT INTO memories_fts(rowid, summary, tags, memory_type) VALUES (new.rowid, new.summary, new.tags, new.memory_type); END;");
+    let _ = conn.execute_batch("INSERT INTO memories_fts(memories_fts) VALUES ('rebuild')");
+    // Consolidate existing memories (wrapped in catch-all)
+    {
+        let ws_list: Vec<String> = conn.prepare("SELECT DISTINCT workspace_path FROM memories")
+            .ok()
+            .and_then(|mut s| {
+                let rows = s.query_map([], |row| row.get::<_, String>(0)).ok()?;
+                Some(rows.filter_map(|r| r.ok()).collect())
+            })
+            .unwrap_or_default();
+        for ws in ws_list {
+            let _ = crate::db::memory_repo::consolidate_memories(conn, &ws);
+        }
+    }
+    Ok(())
+}

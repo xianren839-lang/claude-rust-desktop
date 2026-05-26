@@ -69,7 +69,7 @@ function getToken() {
 function getUserModeForConversation(conversationId?: string): string {
   if (conversationId) {
     try {
-      const raw = localStorage.getItem('cross_mode_overrides');
+      const raw = localStorage.getItem('cross_mode_overrides_v2');
       if (raw) {
         const map = JSON.parse(raw);
         if (map[conversationId]) return map[conversationId];
@@ -483,10 +483,10 @@ export async function getProjects(): Promise<Project[]> {
   return Array.isArray(data) ? data : (Array.isArray(data?.projects) ? data.projects : []);
 }
 
-export async function createProject(name: string, description?: string): Promise<Project> {
+export async function createProject(name: string, description?: string, workspacePath?: string): Promise<Project> {
   const res = await request('/projects', {
     method: 'POST',
-    body: JSON.stringify({ name, description: description || '' }),
+    body: JSON.stringify({ name, description: description || '', workspace_path: workspacePath }),
   });
   return res.json();
 }
@@ -496,7 +496,7 @@ export async function getProject(id: string) {
   return res.json();
 }
 
-export async function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'description' | 'instructions' | 'is_archived'>>) {
+export async function updateProject(id: string, data: Partial<Pick<Project, 'name' | 'description' | 'instructions' | 'is_archived' | 'workspace_path'>>) {
   const res = await request(`/projects/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
@@ -532,10 +532,10 @@ export async function getProjectConversations(projectId: string) {
   return res.json();
 }
 
-export async function createProjectConversation(projectId: string, title?: string, model?: string) {
+export async function createProjectConversation(projectId: string, title?: string, model?: string, workspacePath?: string) {
   const res = await request(`/projects/${projectId}/conversations`, {
     method: 'POST',
-    body: JSON.stringify({ title, model }),
+    body: JSON.stringify({ title, model, workspace_path: workspacePath }),
   });
   return res.json();
 }
@@ -663,7 +663,7 @@ export async function deleteConversation(id: string) {
 
 export async function updateConversation(id: string, data: any) {
   if (isTauriApp) {
-    return { ...data, id };
+    await detectBridgePort();
   }
   const res = await request(`/conversations/${id}`, {
     method: 'PATCH',
@@ -843,7 +843,7 @@ export function warmEngine(conversationId: string): void {
 }
 
 // ===== Provider Management =====
-export interface ProviderModel { id: string; name: string; enabled?: boolean; }
+export interface ProviderModel { id: string; name: string; enabled?: boolean; context_window?: number; }
 export interface Provider {
   id: string; name: string; apiKey: string; baseUrl: string;
   format: 'anthropic' | 'openai'; models: ProviderModel[]; enabled: boolean;
@@ -1471,6 +1471,16 @@ export async function sendMessageNative(
 
   try {
     await detectBridgePort();
+    let webSearchEnabled = false;
+    let researchModeFlag = false;
+    try {
+      if (typeof window !== 'undefined' && (window as any).__chatStore) {
+        const st = (window as any).__chatStore.getState();
+        webSearchEnabled = st.webSearchEnabled || false;
+      }
+    } catch {}
+    try { researchModeFlag = localStorage.getItem("research_mode") === "true"; } catch {}
+    console.log("[API] researchMode:", researchModeFlag, "webSearchEnabled:", webSearchEnabled);
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: {
@@ -1484,6 +1494,8 @@ export async function sendMessageNative(
         ...resolveEnvCreds(getUserModeForConversation(conversationId)),
         user_mode: getUserModeForConversation(conversationId),
         permission_mode: permissionMode,
+        web_search_enabled: webSearchEnabled,
+        research_mode: researchModeFlag || undefined,
       }),
     });
 
@@ -1680,6 +1692,16 @@ export async function sendMessage(
         permissionMode = (window as any).__chatStore.getState().permissionMode;
       }
     } catch {}
+    let webSearchEnabled = false;
+    let researchModeFlag = false;
+    try {
+      if (typeof window !== 'undefined' && (window as any).__chatStore) {
+        const st = (window as any).__chatStore.getState();
+        webSearchEnabled = st.webSearchEnabled || false;
+      }
+    } catch {}
+    try { researchModeFlag = localStorage.getItem("research_mode") === "true"; } catch {}
+    console.log("[API] researchMode:", researchModeFlag, "webSearchEnabled:", webSearchEnabled);
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: {
@@ -1695,6 +1717,8 @@ export async function sendMessage(
         ...resolveEnvCreds(getUserModeForConversation(conversationId)),
         user_mode: getUserModeForConversation(conversationId),
         permission_mode: permissionMode,
+        web_search_enabled: webSearchEnabled,
+        research_mode: researchModeFlag || undefined,
         user_profile: (() => {
           try {
             const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('user') || '{}');
@@ -2415,4 +2439,31 @@ export function streamTerminalOutput(
   return () => {
     closed = true;
   };
+}
+
+// === Memory API (V2) ===
+export async function getMemories(): Promise<any[]> {
+  const res = await request('/memories');
+  const data = await res.json();
+  return data.memories || [];
+}
+
+export async function searchMemories(query: string, workspace?: string): Promise<any[]> {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (workspace) params.set('workspace', workspace);
+  const res = await request(`/memories/search?${params.toString()}`);
+  const data = await res.json();
+  return data.memories || [];
+}
+
+export async function deleteMemory(id: string): Promise<boolean> {
+  const res = await request(`/memories/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  return data.ok || false;
+}
+
+export async function getMemoryStats(): Promise<{ total: number; by_type: [string, number][]; by_importance: [number, number][] }> {
+  const res = await request('/memories/stats');
+  return res.json();
 }

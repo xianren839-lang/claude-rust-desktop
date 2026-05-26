@@ -24,6 +24,7 @@ pub struct ChatRequest {
     pub workspace_path: Option<String>,
     pub temperature: Option<f32>,
     pub top_p: Option<f32>,
+    pub web_search_enabled: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -299,6 +300,18 @@ impl QueryEngine {
         };
         self.update_conversation_state(&conv_id, state).await;
 
+        // Extract user messages for DB persistence before messages are moved into executor
+        let user_messages: Vec<(String, String)> = request.messages.iter()
+            .filter(|m| m.get("role").and_then(|v| v.as_str()) == Some("user"))
+            .filter_map(|m| {
+                let content = if let Some(s) = m.get("content").and_then(|v| v.as_str()) {
+                    s.to_string()
+                } else {
+                    serde_json::to_string(m.get("content").unwrap_or(&serde_json::Value::Null)).unwrap_or_default()
+                };
+                if content.is_empty() { None } else { Some((Uuid::new_v4().to_string(), content)) }
+            })
+            .collect();
         let mut executor = ToolLoopExecutor::new(
             provider,
             request.messages,
@@ -309,7 +322,8 @@ impl QueryEngine {
         )
         .with_conv_id(conv_id.clone())
         .with_answer_waiters(self.answer_waiters.clone())
-        .with_permission_manager(self.permission_manager.clone());
+        .with_permission_manager(self.permission_manager.clone())
+        .with_web_search_enabled(request.web_search_enabled.unwrap_or(false));
 
         if let Some(ref registry) = self.mcp_registry {
             executor = executor.with_mcp_registry(registry.clone());
@@ -325,7 +339,32 @@ impl QueryEngine {
             match executor.execute().await {
                 Ok((full_text, _stop_reason)) => {
                     if !full_text.is_empty() {
+                        // Save user message FIRST (so it gets lower sort_order)
+                        if let Some((msg_id, content)) = user_messages.last() {
+                            let db_user = db.clone();
+                            let conv_id_user = conv_id_clone.clone();
+                            let msg_id = msg_id.clone();
+                            let content = content.clone();
+                            tokio::task::spawn_blocking(move || {
+                                db_user.with_conn(|conn| {
+                                    let existing: i64 = conn.query_row(
+                                        "SELECT COUNT(*) FROM messages WHERE conversation_id=?1 AND role=?2 AND content=?3",
+                                        rusqlite::params![conv_id_user, "user", content],
+                                        |row| row.get(0),
+                                    ).unwrap_or(0);
+                                    if existing == 0 {
+                                        let now = Utc::now().to_rfc3339();
+                                        let so = crate::db::message_repo::get_messages_by_conversation(conn, &conv_id_user)
+                                            .unwrap_or_default().len() as i64;
+                                        let _ = crate::db::message_repo::insert_message(conn, &msg_id, &conv_id_user, "user", &content, None, &now, false, so);
+                                        let _ = crate::db::conversation_repo::increment_message_count(conn, &conv_id_user);
+                                    }
+                                })
+                            }).await.ok();
+                        }
+                        // Then save assistant message
                         let conv_id = conv_id_clone.clone();
+                        let db2 = db.clone();
                         let _ = tokio::task::spawn_blocking(move || {
                             db.with_conn(|conn| {
                                 let msg_id = Uuid::new_v4().to_string();
@@ -340,6 +379,29 @@ impl QueryEngine {
                                 Ok::<(), anyhow::Error>(())
                             })
                         }).await;
+
+                        // Write memory
+                        let db_m = db2.clone();
+                        let cv = conv_id_clone.clone();
+                        tokio::spawn(async move {
+                            let r = tokio::task::spawn_blocking(move || {
+                                let res = db_m.with_conn(|conn| -> Result<(), anyhow::Error> {
+                                    let ws = crate::db::conversation_repo::get_conversation(conn, &cv).ok().flatten().and_then(|c| c.workspace_path).unwrap_or_default();
+                                    let msgs = crate::db::message_repo::get_messages_by_conversation(conn, &cv).unwrap_or_default();
+                                    let (sum, mem_tags, mem_importance) = crate::db::memory_repo::build_smart_summary(&msgs);
+                                    if !sum.is_empty() {
+                                        let mem_type = if sum.contains("Decisions:") || sum.contains("决定") { "decision" }
+                                            else if sum.contains("Preferences:") || sum.contains("喜欢") { "preference" }
+                                            else if sum.contains("Key facts:") { "fact" }
+                                            else { "context" };
+                                        crate::db::memory_repo::insert_memory(conn, &Uuid::new_v4().to_string(), &ws, &cv, &sum, &mem_tags, mem_type, mem_importance, &Utc::now().to_rfc3339())?;
+                                    }
+                                    Ok(())
+                                });
+                                if let Err(e) = res { eprintln!("[Memory] error: {}", e); }
+                            }).await;
+                            if let Err(e) = r { eprintln!("[Memory] task join error: {}", e); }
+                        });
                     }
                 }
                 Err(e) => {

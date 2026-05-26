@@ -9,6 +9,8 @@ pub struct ResearchRequest {
     pub api_key: String,
     pub base_url: String,
     pub model: String,
+    #[serde(default)]
+    pub api_format: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +92,7 @@ const SUB_RESEARCHER_SYSTEM_PROMPT: &str = r#"You are a research specialist. You
 4. Include inline markdown hyperlinks to each source you cite: ([source name](url))
 5. Use markdown tables for structured data or comparisons
 6. Be precise with facts, numbers, dates, and technical details
-7. Do NOT write an introduction or conclusion — just the findings body
+7. Do NOT write an introduction or conclusion �?just the findings body
 8. Aim for 500-1500 words of dense, well-cited content
 
 IMPORTANT:
@@ -108,7 +110,7 @@ Your job is to synthesize these findings into a single, comprehensive, long-form
 
 1. Write a clear H1 title
 2. Open with an executive summary (2-3 paragraphs) stating the main conclusions
-3. Organize the body into logical ## sections (not necessarily mirroring the sub-questions — reorganize as needed for coherence)
+3. Organize the body into logical ## sections (not necessarily mirroring the sub-questions �?reorganize as needed for coherence)
 4. Use ### sub-sections where helpful
 5. Use markdown tables for any structured comparisons or data
 6. Include inline citations as markdown hyperlinks: ([source name](url))
@@ -368,6 +370,113 @@ Research this sub-question now. Use web_search to find high-quality sources, the
         Ok((text, sources))
     }
 
+        async fn run_sub_researcher_openai(
+        &self,
+        request: &ResearchRequest,
+        sub_question: String,
+        today: &str,
+    ) -> Result<(String, Vec<ResearchSource>)> {
+        // Step 1: Perform web searches using DuckDuckGo
+        let mut sources = Vec::new();
+        let mut seen_urls = std::collections::HashSet::new();
+        let mut search_results_text = String::new();
+
+        let search_queries = vec![
+            sub_question.clone(),
+            format!("{} {}", request.query, sub_question),
+        ];
+
+        for (idx, query) in search_queries.iter().enumerate() {
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(8))
+                .build()?;
+            let search_url = format!(
+                "https://api.duckduckgo.com/?q={}&format=json&no_html=1",
+                urlencoding::encode(query)
+            );
+            match client.get(&search_url).send().await {
+                Ok(resp) if resp.status().is_success() => {
+                    #[derive(serde::Deserialize)]
+                    struct DDGResponse { RelatedTopics: Vec<DDGTopic> }
+                    #[derive(serde::Deserialize)]
+                    struct DDGTopic { Text: Option<String>, URL: Option<String> }
+
+                    if let Ok(data) = resp.json::<DDGResponse>().await {
+                        for topic in data.RelatedTopics.iter().take(5) {
+                            if let (Some(text), Some(url)) = (&topic.Text, &topic.URL) {
+                                if !url.is_empty() && !seen_urls.contains(url) {
+                                    seen_urls.insert(url.clone());
+                                    sources.push(ResearchSource {
+                                        url: url.clone(),
+                                        title: text.chars().take(100).collect(),
+                                        snippet: None,
+                                    });
+                                    search_results_text.push_str(&format!(
+                                        "- {}\n  {}\n",
+                                        text, url
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if idx == 0 && !search_results_text.is_empty() {
+                search_results_text.push_str("\n");
+            }
+        }
+
+        // Step 2: Build prompt with search results
+        let user_prompt = if search_results_text.is_empty() {
+            format!(
+                r#"Main research topic: "{}"
+
+YOUR ASSIGNED SUB-QUESTION: "{}"
+
+Today'"'"'s date: {}
+
+No web search results were found. Write your findings based on your existing knowledge. Cite any claims you can."#,
+                request.query, sub_question, today
+            )
+        } else {
+            format!(
+                r#"Main research topic: "{}"
+
+YOUR ASSIGNED SUB-QUESTION: "{}"
+
+Today'"'"'s date: {}
+
+Here are web search results to help your research:
+
+{search_results_text}
+
+Write your markdown findings report based on these sources. Cite every factual claim with an inline markdown link using the URLs provided above."#,
+                request.query, sub_question, today
+            )
+        };
+
+        let body = serde_json::json!({
+            "model": request.model,
+            "max_tokens": SUB_RESEARCHER_MAX_TOKENS,
+            "system": SUB_RESEARCHER_SYSTEM_PROMPT,
+            "messages": [{
+                "role": "user",
+                "content": user_prompt
+            }]
+        });
+
+        let response = self.call_openai(request, &body).await?;
+        let text = response.get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|a| a.first())
+            .and_then(|b| b.get("text"))
+            .and_then(|t| t.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        Ok((text, sources))
+    }
     async fn run_synthesis(
         &self,
         request: &ResearchRequest,
@@ -381,7 +490,7 @@ Research this sub-question now. Use web_search to find high-quality sources, the
         let sources_list = all_sources
             .iter()
             .enumerate()
-            .map(|(i, s)| format!("[{}] {} — {}", i + 1, s.title, s.url))
+            .map(|(i, s)| format!("[{}] {} �?{}", i + 1, s.title, s.url))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -431,6 +540,7 @@ Now synthesize all of the above into a comprehensive research report following t
         request: &ResearchRequest,
         body: &serde_json::Value,
     ) -> Result<serde_json::Value> {
+        if request.api_format == "openai" { return self.call_openai(request, body).await; }
         let endpoint = self.normalize_endpoint(&request.base_url);
 
         let response = self.http_client
@@ -459,6 +569,7 @@ Now synthesize all of the above into a comprehensive research report following t
         body: &serde_json::Value,
         event_tx: mpsc::UnboundedSender<ResearchEvent>,
     ) -> Result<String> {
+        if request.api_format == "openai" { return self.call_openai_streaming(request, body, event_tx).await; }
         let endpoint = self.normalize_endpoint(&request.base_url);
 
         let response = self.http_client
@@ -557,5 +668,62 @@ Now synthesize all of the above into a comprehensive research report following t
         } else {
             format!("{}/v1/messages", base)
         }
+    }
+
+    async fn call_openai(&self, request: &ResearchRequest, body: &serde_json::Value) -> Result<serde_json::Value> {
+        let base = request.base_url.trim_end_matches('/');
+        let endpoint = if base.ends_with("/v1") || base.ends_with("/v1/") { format!("{}/chat/completions", base.trim_end_matches('/')) } else { format!("{}/v1/chat/completions", base) };
+        let mut openai_body = serde_json::json!({"model": request.model, "max_tokens": 4096});
+        if let Some(msgs) = body.get("messages") { openai_body["messages"] = msgs.clone(); }
+        if let Some(sys) = body.get("system") {
+            if let Some(arr) = openai_body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+                arr.insert(0, serde_json::json!({"role":"system","content":sys.as_str().unwrap_or("")}));
+            }
+        }
+        let resp = self.http_client.post(&endpoint).header("Content-Type","application/json").header("Authorization",format!("Bearer {}",request.api_key)).json(&openai_body).send().await?;
+        if !resp.status().is_success() { let e = resp.text().await.unwrap_or_default(); return Err(anyhow::anyhow!("OpenAI error: {}", &e[..e.len().min(500)])); }
+        let json: serde_json::Value = resp.json().await?;
+        let text = json.get("choices").and_then(|c|c.as_array()).and_then(|a|a.first()).and_then(|c|c.get("message")).and_then(|m|m.get("content")).and_then(|c|c.as_str()).unwrap_or("");
+        Ok(serde_json::json!({"content":[{"type":"text","text":text}]}))
+    }
+
+    async fn call_openai_streaming(&self, request: &ResearchRequest, body: &serde_json::Value, event_tx: mpsc::UnboundedSender<ResearchEvent>) -> Result<String> {
+        let base = request.base_url.trim_end_matches('/');
+        let endpoint = if base.ends_with("/v1") || base.ends_with("/v1/") { format!("{}/chat/completions", base.trim_end_matches('/')) } else { format!("{}/v1/chat/completions", base) };
+        let mut openai_body = serde_json::json!({"model": request.model, "max_tokens": 4096, "stream": true});
+        if let Some(msgs) = body.get("messages") { openai_body["messages"] = msgs.clone(); }
+        if let Some(sys) = body.get("system") {
+            if let Some(arr) = openai_body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+                arr.insert(0, serde_json::json!({"role":"system","content":sys.as_str().unwrap_or("")}));
+            }
+        }
+        let resp = self.http_client.post(&endpoint).header("Content-Type","application/json").header("Authorization",format!("Bearer {}",request.api_key)).json(&openai_body).send().await?;
+        if !resp.status().is_success() { let e = resp.text().await.unwrap_or_default(); return Err(anyhow::anyhow!("OpenAI stream error: {}", &e[..e.len().min(500)])); }
+        let mut stream = resp.bytes_stream();
+        use futures::StreamExt;
+        let mut buf = String::new();
+        let mut full_text = String::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            buf.push_str(&String::from_utf8_lossy(&chunk));
+            let lines: Vec<String> = buf.split('\n').map(String::from).collect();
+            buf = lines.last().cloned().unwrap_or_default();
+            for line in &lines[..lines.len().saturating_sub(1)] {
+                let line = line.trim();
+                if !line.starts_with("data:") { continue; }
+                let data = line[5..].trim();
+                if data == "[DONE]" { break; }
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                    // Check for finish_reason which signals end of stream
+                    let finish = json.get("choices").and_then(|c|c.as_array()).and_then(|a|a.first()).and_then(|c|c.get("finish_reason")).and_then(|f|f.as_str());
+                    if let Some(delta) = json.get("choices").and_then(|c|c.as_array()).and_then(|a|a.first()).and_then(|c|c.get("delta")).and_then(|d|d.get("content")).and_then(|c|c.as_str()) {
+                        full_text.push_str(delta);
+                        let _ = event_tx.send(ResearchEvent::ResearchReportDelta { text: delta.to_string() });
+                    }
+                    if finish.is_some() { break; }
+                }
+            }
+        }
+        Ok(full_text)
     }
 }

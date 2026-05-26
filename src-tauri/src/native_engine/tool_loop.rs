@@ -66,6 +66,7 @@ pub struct ToolLoopExecutor {
     conv_id: Option<String>,
     answer_waiters: Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>,
     permission_manager: Option<Arc<PermissionManager>>,
+    web_search_enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,7 @@ impl ToolLoopExecutor {
             conv_id: None,
             answer_waiters: Arc::new(Mutex::new(HashMap::new())),
             permission_manager: None,
+            web_search_enabled: false,
         }
     }
 
@@ -122,6 +124,11 @@ impl ToolLoopExecutor {
 
     pub fn with_permission_manager(mut self, manager: Arc<PermissionManager>) -> Self {
         self.permission_manager = Some(manager);
+        self
+    }
+
+    pub fn with_web_search_enabled(mut self, enabled: bool) -> Self {
+        self.web_search_enabled = enabled;
         self
     }
 
@@ -349,7 +356,9 @@ impl ToolLoopExecutor {
 
     async fn execute_anthropic_loop(&mut self) -> Result<(String, Option<String>)> {
         let mut conversation_messages: Vec<AnthropicMessage> = self.build_anthropic_messages();
-        let tools = get_tool_definitions();
+        let tools: Vec<_> = get_tool_definitions().into_iter()
+            .filter(|t| self.web_search_enabled || t.name != "WebSearch")
+            .collect();
         let mut full_text = String::new();
         let mut stop_reason = None;
 
@@ -582,7 +591,9 @@ impl ToolLoopExecutor {
 
     async fn execute_openai_loop(&mut self) -> Result<(String, Option<String>)> {
         let mut conversation_messages: Vec<OpenAIMessage> = self.build_openai_messages();
-        let tools = get_tool_definitions();
+        let tools: Vec<_> = get_tool_definitions().into_iter()
+            .filter(|t| self.web_search_enabled || t.name != "WebSearch")
+            .collect();
         let mut full_text = String::new();
         let mut stop_reason = None;
 

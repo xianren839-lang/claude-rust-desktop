@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Search, X, Filter, ChevronDown, FileText, Link2, Puzzle, ArrowRight, Download } from 'lucide-react';
+import { useI18n } from '../hooks/useI18n';
 
 interface DirectoryCategory {
   id: string;
@@ -187,27 +188,34 @@ const PLUGIN_CATEGORIES: DirectoryCategory[] = [
 
 type TabType = 'skills' | 'connectors' | 'plugins';
 
-const TAB_CONFIG: Record<TabType, { label: string; icon: React.ReactNode; categories: DirectoryCategory[] }> = {
-  skills: {
-    label: 'Skills',
-    icon: <FileText size={16} />,
-    categories: SKILL_CATEGORIES,
-  },
-  connectors: {
-    label: 'Connectors',
-    icon: <Link2 size={16} />,
-    categories: CONNECTOR_CATEGORIES,
-  },
-  plugins: {
-    label: 'Plugins',
-    icon: <Puzzle size={16} />,
-    categories: PLUGIN_CATEGORIES,
-  },
-};
-
 const DirectoryModal: React.FC<DirectoryModalProps> = ({ isOpen, onClose, onNavigate }) => {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<TabType>('plugins');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const TAB_CONFIG: Record<TabType, { label: string; labelKey: string; searchKey: string; icon: React.ReactNode; categories: DirectoryCategory[] }> = {
+    skills: {
+      label: t('customize.directorySkills'),
+      labelKey: 'customize.directorySkills',
+      searchKey: 'customize.searchSkills',
+      icon: <FileText size={16} />,
+      categories: SKILL_CATEGORIES,
+    },
+    connectors: {
+      label: t('customize.directoryConnectors'),
+      labelKey: 'customize.directoryConnectors',
+      searchKey: 'customize.searchConnectors',
+      icon: <Link2 size={16} />,
+      categories: CONNECTOR_CATEGORIES,
+    },
+    plugins: {
+      label: t('customize.directoryPlugins'),
+      labelKey: 'customize.directoryPlugins',
+      searchKey: 'customize.searchPlugins',
+      icon: <Puzzle size={16} />,
+      categories: PLUGIN_CATEGORIES,
+    },
+  };
 
   if (!isOpen) return null;
 
@@ -227,7 +235,7 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({ isOpen, onClose, onNavi
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-claude-border flex-shrink-0">
           <h2 className="font-[Spectral] text-[20px] text-claude-text" style={{ fontWeight: 500 }}>
-            Directory
+            {t('customize.directory')}
           </h2>
           <button
             onClick={onClose}
@@ -272,7 +280,7 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({ isOpen, onClose, onNavi
                   type="text"
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={`Search ${currentConfig.label.toLowerCase()}...`}
+                  placeholder={t(currentConfig.searchKey)}
                   className="w-full pl-9 pr-4 py-2.5 bg-claude-input border border-claude-border rounded-xl text-[14px] text-claude-text placeholder:text-claude-textSecondary/50 outline-none focus:border-[#387ee0] transition-colors"
                 />
                 {searchQuery && (
@@ -289,24 +297,24 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({ isOpen, onClose, onNavi
             {/* Banner for plugins tab */}
             {activeTab === 'plugins' && (
               <div className="mx-6 mb-3 px-4 py-2.5 bg-claude-hover/50 border border-claude-border rounded-lg text-[13px] text-claude-textSecondary">
-                Plugins can be browsed, but are only available for use in the desktop app.{' '}
-                <a href="#" className="text-[#4B9EFA] hover:underline">Download Claude for Desktop</a>
+                {t('customize.pluginsBanner')}{' '}
+                <a href="#" className="text-[#4B9EFA] hover:underline">{t('customize.downloadDesktop')}</a>
               </div>
             )}
 
             {/* Filter and sort bar */}
             <div className="flex items-center justify-between px-6 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] text-claude-textSecondary font-medium">Anthropic & Partners</span>
+                <span className="text-[13px] text-claude-textSecondary font-medium">{t('customize.anthropicPartners')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <button className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] text-claude-textSecondary hover:text-claude-text hover:bg-claude-hover rounded-lg transition-colors">
                   <Filter size={12} />
-                  Filter by
+                  {t('customize.filterBy')}
                   <ChevronDown size={12} />
                 </button>
                 <button className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] text-claude-textSecondary hover:text-claude-text hover:bg-claude-hover rounded-lg transition-colors">
-                  Sort by
+                  {t('customize.sortBy')}
                   <ChevronDown size={12} />
                 </button>
               </div>
@@ -353,8 +361,8 @@ const DirectoryModal: React.FC<DirectoryModalProps> = ({ isOpen, onClose, onNavi
               {filteredCategories.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Search size={32} className="text-claude-textSecondary/30 mb-3" />
-                  <p className="text-[14px] text-claude-textSecondary">No {currentConfig.label.toLowerCase()} found</p>
-                  <p className="text-[12px] text-claude-textSecondary/60 mt-1">Try a different search term</p>
+                  <p className="text-[14px] text-claude-textSecondary">{t('customize.noResults', { item: currentConfig.label })}</p>
+                  <p className="text-[12px] text-claude-textSecondary/60 mt-1">{t('customize.tryDifferentSearch')}</p>
                 </div>
               )}
             </div>
