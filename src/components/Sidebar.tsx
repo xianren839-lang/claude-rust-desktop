@@ -9,13 +9,11 @@ import {
   IconChatBubble,
   IconCode,
   IconPlusCircle,
-  IconArtifactsExact,
   IconProjects,
   IconDotsHorizontal,
   IconStarOutline,
   IconPencil,
   IconTrash,
-  IconModels,
   IconPalette,
   IconDirectory
 } from './Icons';
@@ -178,8 +176,6 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     switch (id) {
       case 'chats': return <IconChatBubble size={size} className={className} />;
       case 'projects': return <IconProjects size={size} className={className} />;
-      case 'artifacts': return <IconArtifactsExact size={size} className={className} />;
-      case 'models': return <IconModels size={size} className={className} />;
       case 'design': return <IconPalette size={size} className={className} />;
       case 'directory': return <IconDirectory size={size} className={className} />;
       case 'code': return <IconCode size={size} className={className} />;
@@ -207,14 +203,6 @@ const Sidebar = ({ isCollapsed, toggleSidebar, refreshTrigger, onNewChatClick, o
     }
     if (id === 'projects') {
       navigate('/projects');
-      return;
-    }
-    if (id === 'artifacts') {
-      navigate('/artifacts');
-      return;
-    }
-    if (id === 'models') {
-      navigate('/models');
       return;
     }
     if (id === 'design') {

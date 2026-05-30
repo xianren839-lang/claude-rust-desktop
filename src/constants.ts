@@ -19,8 +19,6 @@ export const RECENT_CHATS = [
 export const NAV_ITEMS = [
   { id: "chats", label: "sidebar.chats", icon: "message-square" },
   { id: "projects", label: "sidebar.projects", icon: "folder" },
-  { id: "artifacts", label: "sidebar.artifacts", icon: "sparkles" },
-  { id: "models", label: "sidebar.models", icon: "cpu" },
   { id: "design", label: "sidebar.design", icon: "palette" },
   { id: "directory", label: "sidebar.directory", icon: "grid" },
 ];
